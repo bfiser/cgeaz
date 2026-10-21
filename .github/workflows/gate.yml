@@ -30,6 +30,8 @@ jobs:
     if: ${{ vars.AZURE_CLIENT_ID != '' }}
     runs-on: ubuntu-latest
     strategy:
+      # CHANGED: report every stage's result instead of cancelling on the first failure
+      fail-fast: false
       matrix:
         stage: [01-foundation, 03-evidence-store, 04-reporting, 06-enforcement]
     steps:
@@ -51,8 +53,13 @@ jobs:
           terraform plan -input=false -out=tf.plan
           terraform show -json tf.plan > plan.json
 
+      # CHANGED: instrumenta/conftest:latest predates rego.v1 and cannot parse the
+      # course policies. Install a pinned, current Conftest instead.
+      - name: Install Conftest (pinned)
+        run: |
+          curl -fsSL https://github.com/open-policy-agent/conftest/releases/download/v0.71.0/conftest_0.71.0_Linux_x86_64.tar.gz \
+            | sudo tar -xz -C /usr/local/bin conftest
+
+      # CHANGED: run Conftest directly
       - name: OPA gate (conftest)
-        uses: instrumenta/conftest-action@master
-        with:
-          files: stages/${{ matrix.stage }}/plan.json
-          policy: policy
+        run: conftest test -p policy stages/${{ matrix.stage }}/plan.json
