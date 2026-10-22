@@ -34,3 +34,17 @@ variable "public_blob_policy_effect" {
     error_message = "public_blob_policy_effect must be Audit, Deny, or Disabled."
   }
 }
+
+# Escalation knob for Custom 1 (storage minimum TLS, 800-53 SC-8).
+# Audit while new; raise to Deny by PR once no non-compliant accounts remain.
+variable "storage_tls_policy_effect" {
+  description = "Effect for the storage minimum-TLS policy (Audit while new; Deny once the estate is clean)."
+  type        = string
+  default     = "Audit"
+
+  # Reject typos at plan time ("deny", "Audti") instead of failing inside Azure.
+  validation {
+    condition     = contains(["Audit", "Deny", "Disabled"], var.storage_tls_policy_effect)
+    error_message = "storage_tls_policy_effect must be Audit, Deny, or Disabled."
+  }
+}

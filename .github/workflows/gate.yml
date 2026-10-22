@@ -60,6 +60,11 @@ jobs:
           curl -fsSL https://github.com/open-policy-agent/conftest/releases/download/v0.71.0/conftest_0.71.0_Linux_x86_64.tar.gz \
             | sudo tar -xz -C /usr/local/bin conftest
 
+      # Prove the gate's own rules still catch what they claim to, before
+      # trusting their verdict on this plan. A rule that fails its tests is blind.
+      - name: Gate rule tests (conftest verify)
+        run: conftest verify -p policy
+
       # CHANGED: run Conftest directly
       - name: OPA gate (conftest)
         run: conftest test -p policy stages/${{ matrix.stage }}/plan.json

@@ -141,6 +141,7 @@ resource "azurerm_management_group_policy_set_definition" "grc_baseline" {
     tagEffect        = { type = "String", defaultValue = "Audit" }
     publicBlobEffect = { type = "String", defaultValue = "Deny" }
     workspaceId      = { type = "String" }
+    storageTlsEffect = { type = "String", defaultValue = "Audit" } # Custom 1 (storage min TLS): its own effect knob, independent of the others, so each control escalates on its own schedule.
   })
 
   policy_definition_reference {
@@ -163,6 +164,16 @@ resource "azurerm_management_group_policy_set_definition" "grc_baseline" {
       workspaceId = { value = "[parameters('workspaceId')]" }
     })
   }
+
+  # Custom 1: storage minimum TLS 1.2 (800-53 SC-8). Joining the existing initiative
+  # means no new assignment: it inherits through the one management-group assignment.
+  policy_definition_reference {
+    policy_definition_id = azurerm_policy_definition.storage_min_tls.id
+    parameter_values = jsonencode({
+      # Pass the initiative's storageTlsEffect down to the definition's effect parameter.
+      effect = { value = "[parameters('storageTlsEffect')]" }
+    })
+  }
 }
 
 resource "azurerm_management_group_policy_assignment" "grc_baseline" {
@@ -176,6 +187,7 @@ resource "azurerm_management_group_policy_assignment" "grc_baseline" {
     tagEffect        = { value = var.tag_policy_effect }
     publicBlobEffect = { value = var.public_blob_policy_effect }
     workspaceId      = { value = azurerm_log_analytics_workspace.grc.id }
+    storageTlsEffect = { value = var.storage_tls_policy_effect } # Custom 1: the escalation knob. The value comes from a validated Terraform variable, so changing Audit -> Deny is a reviewed PR, not a portal click.
   })
 
   # Remediation effects (deployIfNotExists) execute AS this identity.
