@@ -1,3 +1,4 @@
+# Redacted 2026-10-22: owner email replaced with [redacted-owner-email] (PII). No other changes.
 gate (01-foundation)	OPA gate (conftest)	﻿2026-10-21T20:11:39.0028182Z ##[group]Run conftest test -p policy stages/01-foundation/plan.json
 gate (01-foundation)	OPA gate (conftest)	2026-10-21T20:11:39.0028963Z [36;1mconftest test -p policy stages/01-foundation/plan.json[0m
 gate (01-foundation)	OPA gate (conftest)	2026-10-21T20:11:39.0080422Z shell: /usr/bin/bash -e {0}
@@ -7,7 +8,7 @@ gate (01-foundation)	OPA gate (conftest)	2026-10-21T20:11:39.0081258Z   ARM_CLIE
 gate (01-foundation)	OPA gate (conftest)	2026-10-21T20:11:39.0081517Z   ARM_TENANT_ID: 3703c357-655c-48e0-b3a1-52a179d94989
 gate (01-foundation)	OPA gate (conftest)	2026-10-21T20:11:39.0081902Z   ARM_SUBSCRIPTION_ID: 74a9c6be-f18a-4f85-90de-cb55aaa149b1
 gate (01-foundation)	OPA gate (conftest)	2026-10-21T20:11:39.0082303Z   TF_VAR_state_storage_account: stgrctfstate74a9c6be
-gate (01-foundation)	OPA gate (conftest)	2026-10-21T20:11:39.0082659Z   TF_VAR_owner_email: benjamin.fiser@gmail.com
+gate (01-foundation)	OPA gate (conftest)	2026-10-21T20:11:39.0082659Z   TF_VAR_owner_email: [redacted-owner-email]
 gate (01-foundation)	OPA gate (conftest)	2026-10-21T20:11:39.0083102Z   TERRAFORM_CLI_PATH: /home/runner/work/_temp/194bc228-4a7a-40fb-af67-3323a7bcb695
 gate (01-foundation)	OPA gate (conftest)	2026-10-21T20:11:39.0083519Z ##[endgroup]
 gate (01-foundation)	OPA gate (conftest)	2026-10-21T20:11:39.0407937Z [31mFAIL[0m - stages/01-foundation/plan.json - main - azurerm_storage_account.gate_test: shared key access must be disabled (identity or nothing) — func runtime storage is the documented exception
