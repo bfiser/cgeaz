@@ -1,20 +1,23 @@
-# Federal track (NIST SP 800-53 Rev. 5): custom policies beyond the taught set.
-# Each joins the cge-grc-baseline initiative, so it inherits to every subscription
-# under mg-grc-sandbox. Effects start at Audit and escalate by reviewed PR.
-
-# --- Custom 1: Storage accounts must require TLS 1.2 or higher ---
+# --- Custom 1: Storage accounts must declare TLS 1.2 or higher ---
 # 800-53: SC-8, SC-8(1) (transmission confidentiality and integrity)
 # CSF 2.0: PR.DS-02 (data in transit)
-# Why custom: Defender's assessments did not flag the seed account's TLS 1.0
-# (discovery, 2026-10-22). This control catches a gap the platform missed.
+# Why custom: Azure retired TLS 1.0/1.1 for storage on 2026-02-03 and now
+# enforces 1.2 at the service; new accounts are upgraded automatically.
+# During the first live run of seed-estate.sh (2026-10-22), a TLS1_0 request
+# came back TLS1_2; upstream removed the claim afterward (VALIDATION-LOG F22).
+# But accounts created before the retirement can still DECLARE TLS1_0
+# (stgrcseed19778 does). Defender no longer assesses it; an auditor reading
+# configuration would. This control keeps declared configuration truthful
+# and catches regressions.
 #
 # BLAST RADIUS
 #   Audit (default): changes nothing; non-compliant accounts are reported.
-#   Deny: blocks creating or updating any storage account with minimum TLS
-#     below 1.2. Existing non-compliant accounts (today: the hand-built seed
-#     account, TLS1_0) cannot be updated at all until fixed.
-#   Could break: clients that only speak TLS 1.0/1.1, once an account is
-#     raised to TLS1_2.
+#   Deny: blocks creating or updating any storage account that declares
+#     minimum TLS below 1.2. Existing non-compliant accounts (today: the
+#     hand-built seed account) cannot be updated at all until fixed.
+#   Could break: little at the service level, since Azure already enforces
+#     TLS 1.2. The real risk is operational: a Deny would block unrelated
+#     updates to a non-compliant account until its declared TLS is raised.
 #   Rollback: set storage_tls_policy_effect back to "Audit" (one-line PR).
 
 resource "azurerm_policy_definition" "storage_min_tls" {
