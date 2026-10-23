@@ -48,3 +48,15 @@ variable "storage_tls_policy_effect" {
     error_message = "storage_tls_policy_effect must be Audit, Deny, or Disabled."
   }
 }
+
+variable "appservice_transport_policy_effect" {
+  description = "Effect for the App Service transport-security policy (Audit while new; Deny once the estate is clean)."
+  type        = string
+  default     = "Audit"
+
+  # Reject typos at plan time instead of failing inside Azure.
+  validation {
+    condition     = contains(["Audit", "Deny", "Disabled"], var.appservice_transport_policy_effect)
+    error_message = "appservice_transport_policy_effect must be Audit, Deny, or Disabled."
+  }
+}

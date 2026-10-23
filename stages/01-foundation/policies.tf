@@ -138,10 +138,11 @@ resource "azurerm_management_group_policy_set_definition" "grc_baseline" {
   management_group_id = azurerm_management_group.sandbox.id
 
   parameters = jsonencode({
-    tagEffect        = { type = "String", defaultValue = "Audit" }
-    publicBlobEffect = { type = "String", defaultValue = "Deny" }
-    workspaceId      = { type = "String" }
-    storageTlsEffect = { type = "String", defaultValue = "Audit" } # Custom 1 (storage min TLS): its own effect knob, independent of the others, so each control escalates on its own schedule.
+    tagEffect                 = { type = "String", defaultValue = "Audit" }
+    publicBlobEffect          = { type = "String", defaultValue = "Deny" }
+    workspaceId               = { type = "String" }
+    storageTlsEffect          = { type = "String", defaultValue = "Audit" } # Custom 1 (storage min TLS): its own effect knob, independent of the others, so each control escalates on its own schedule.
+    appServiceTransportEffect = { type = "String", defaultValue = "Audit" } # Custom 2 (App Service transport): its own escalation knob.
   })
 
   policy_definition_reference {
@@ -174,6 +175,15 @@ resource "azurerm_management_group_policy_set_definition" "grc_baseline" {
       effect = { value = "[parameters('storageTlsEffect')]" }
     })
   }
+
+  # Custom 2: App Service transport security (800-53 SC-8, SC-23, IA-5(1)).
+  # Same pattern as Custom 1: joins the initiative, inherits through the one assignment.
+  policy_definition_reference {
+    policy_definition_id = azurerm_policy_definition.appservice_transport.id
+    parameter_values = jsonencode({
+      effect = { value = "[parameters('appServiceTransportEffect')]" }
+    })
+  }
 }
 
 resource "azurerm_management_group_policy_assignment" "grc_baseline" {
@@ -184,10 +194,11 @@ resource "azurerm_management_group_policy_assignment" "grc_baseline" {
   location             = var.location
 
   parameters = jsonencode({
-    tagEffect        = { value = var.tag_policy_effect }
-    publicBlobEffect = { value = var.public_blob_policy_effect }
-    workspaceId      = { value = azurerm_log_analytics_workspace.grc.id }
-    storageTlsEffect = { value = var.storage_tls_policy_effect } # Custom 1: the escalation knob. The value comes from a validated Terraform variable, so changing Audit -> Deny is a reviewed PR, not a portal click.
+    tagEffect                 = { value = var.tag_policy_effect }
+    publicBlobEffect          = { value = var.public_blob_policy_effect }
+    workspaceId               = { value = azurerm_log_analytics_workspace.grc.id }
+    storageTlsEffect          = { value = var.storage_tls_policy_effect }          # Custom 1: the escalation knob. The value comes from a validated Terraform variable, so changing Audit -> Deny is a reviewed PR, not a portal click.
+    appServiceTransportEffect = { value = var.appservice_transport_policy_effect } # Custom 2: escalation knob, changed only by reviewed PR.
   })
 
   # Remediation effects (deployIfNotExists) execute AS this identity.
