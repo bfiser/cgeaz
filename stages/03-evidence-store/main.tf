@@ -116,10 +116,15 @@ resource "azurerm_storage_container_immutability_policy" "reports_worm" {
 # Owner is control-plane only (the 01_02 lesson, in production form).
 data "azurerm_client_config" "current" {}
 
+# One place decides who the deployer is: the pinned variable if set, otherwise the caller.
+locals {
+  deployer_principal_id = coalesce(var.deployer_principal_id, data.azurerm_client_config.current.object_id)
+}
+
 resource "azurerm_role_assignment" "deployer_blob_data" {
   scope                = azurerm_storage_account.evidence.id
   role_definition_name = "Storage Blob Data Contributor"
-  principal_id         = data.azurerm_client_config.current.object_id
+  principal_id         = local.deployer_principal_id
 }
 
 # The deployer also seeds the frameworks/mappings containers (labs/04's seed script),
@@ -128,6 +133,6 @@ resource "azurerm_cosmosdb_sql_role_assignment" "deployer_cosmos_write" {
   resource_group_name = local.evidence_rg
   account_name        = azurerm_cosmosdb_account.evidence.name
   role_definition_id  = "${azurerm_cosmosdb_account.evidence.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002"
-  principal_id        = data.azurerm_client_config.current.object_id
+  principal_id        = local.deployer_principal_id
   scope               = azurerm_cosmosdb_account.evidence.id
 }
