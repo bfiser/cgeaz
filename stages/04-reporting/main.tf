@@ -53,10 +53,19 @@ resource "azurerm_linux_function_app" "reporting" {
     type = "SystemAssigned"
   }
 
+  # Encrypted transport (Custom 2; 800-53 SC-8): redirect plain HTTP to HTTPS.
+  https_only = true
+
   site_config {
     application_stack {
       python_version = "3.11"
     }
+
+    # Declared explicitly, even though they match today's defaults, so the code
+    # itself is the evidence and a future provider default change can't weaken them.
+    minimum_tls_version     = "1.2"      # app endpoint (800-53 SC-8)
+    scm_minimum_tls_version = "1.2"      # SCM/Kudu deployment endpoint (SC-8)
+    ftps_state              = "Disabled" # no FTP at all; deploys use zip/OIDC (IA-5(1))
   }
 
   app_settings = {
