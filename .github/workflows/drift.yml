@@ -21,6 +21,7 @@ env:
   ARM_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
   TF_VAR_state_storage_account: ${{ vars.STATE_STORAGE_ACCOUNT }}
   TF_VAR_owner_email: ${{ vars.OWNER_EMAIL }}
+  TF_VAR_deployer_principal_id: ${{ vars.DEPLOYER_PRINCIPAL_ID }}
 
 jobs:
   drift:
@@ -39,6 +40,8 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false   # the wrapper can mask terraform's raw exit code; we need the real 0/1/2
 
       - uses: azure/login@v2
         with:
@@ -49,12 +52,17 @@ jobs:
       - name: plan with detailed exit code
         id: plan
         working-directory: stages/${{ matrix.stage }}
-        continue-on-error: true
+        shell: bash
         run: |
-          terraform init -input=false -backend-config=../../labs/03-foundation/backend.hcl
-          terraform plan -input=false -detailed-exitcode -no-color -out=drift.plan \
-            2>&1 | tee plan-output.txt
-          echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+          set +e   # capture terraform's exit code ourselves instead of letting bash stop on it
+          terraform init -input=false -backend-config=../../labs/03-foundation/backend.hcl || exit 1
+          terraform plan -input=false -detailed-exitcode -no-color -out=drift.plan > plan-output.txt 2>&1
+          code=$?
+          cat plan-output.txt
+          echo "terraform plan exit code: $code"   # printed so a PASS can be verified, not assumed
+          echo "exitcode=$code" >> "$GITHUB_OUTPUT"
+          # 0 = clean, 2 = drift (handled below). Anything else = the detector itself is broken: fail loudly.
+          if [ "$code" -ne 0 ] && [ "$code" -ne 2 ]; then exit "$code"; fi
 
       - name: open drift issue
         if: steps.plan.outputs.exitcode == '2'
@@ -70,3 +78,10 @@ jobs:
               body: 'Reality no longer matches code. This is a change-management finding that generated itself.\n\n```\n' + body.slice(0, 60000) + '\n```',
               labels: ['drift'],
             });
+
+      - name: fail on drift
+        if: steps.plan.outputs.exitcode == '2'
+        run: |
+          echo "::error::Drift detected in stages/${{ matrix.stage }}. See the opened issue for the diff."
+          exit 1
+
