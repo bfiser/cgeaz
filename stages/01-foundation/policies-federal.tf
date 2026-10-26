@@ -172,3 +172,84 @@ resource "azurerm_policy_definition" "appservice_tls_ftps" {
     }
   })
 }
+
+# --- Custom 3: Audit privileged role assignments ---
+# 800-53: AC-6 (least privilege), AC-6(5) (privileged accounts), AC-2(7) (privileged user accounts)
+# CSF 2.0: PR.AA-05 (access permissions, least privilege)
+# Why custom: Defender raised NO finding for the seed workload identity holding
+# Contributor (POA&M 2026-10-26, 63 items). This control makes every standing
+# Owner / Contributor / User Access Administrator / RBAC Administrator grant visible.
+# The last two can grant ANY role, including Owner (privilege-escalation path).
+#
+# Visibility limit (predicted 2026-10-26, see evidence): assigned at mg-grc-sandbox,
+# this evaluates subscription- and resource-group-scope grants. Grants made AT a
+# management group (incl. the CI identity's Contributor at mg-grc) are not evaluated
+# by Azure Policy; the role-assignment collector covers those scopes.
+#
+# BLAST RADIUS
+#   Audit (default): changes nothing; privileged grants are reported.
+#   Deny: blocks CREATING any new grant of these roles at subscription scope or
+#     below, including emergency (break-glass) grants and seed-estate re-runs.
+#     Existing grants are not removed. Not recommended: the better control for
+#     standing privilege is just-in-time access (PIM, requires Entra ID P2).
+#   Rollback: set privileged_role_policy_effect back to "Audit" (one-line PR).
+
+resource "azurerm_policy_definition" "privileged_role_assignments" {
+  name                = "cge-audit-privileged-roles"
+  display_name        = "Privileged role assignments (Owner, Contributor, User Access Admin, RBAC Admin) must be reviewed"
+  policy_type         = "Custom"
+  mode                = "All" # NOT Indexed: role assignments have no tags or location, so Indexed would silently skip them all
+  management_group_id = azurerm_management_group.sandbox.id
+
+  metadata = jsonencode({
+    category    = "Authorization"
+    nist_800_53 = ["AC-6", "AC-6(5)", "AC-2(7)"]
+    csf_2_0     = ["PR.AA-05"]
+  })
+
+  parameters = jsonencode({
+    effect = {
+      type          = "String"
+      allowedValues = ["Audit", "Deny", "Disabled"]
+      defaultValue  = "Audit"
+    }
+    # Built-in role GUIDs are the same in every tenant, so these are safe to hardcode
+    # (no subscription- or tenant-specific values). A parameter, so the list can grow
+    # without editing the rule.
+    privilegedRoleIds = {
+      type     = "Array"
+      metadata = { displayName = "Privileged built-in role definition GUIDs" }
+      defaultValue = [
+        "8e3af657-a8ff-443c-a75c-2fe8c4bcb635", # Owner
+        "b24988ac-6180-42a0-ab88-20f7382dd24c", # Contributor
+        "18d7d88d-d35e-4fb5-a5c3-7773c20a72d9", # User Access Administrator
+        "f58310d9-a9f6-439a-9e8d-f62e7b41a168"  # Role Based Access Control Administrator
+      ]
+    }
+  })
+
+  policy_rule = jsonencode({
+    if = {
+      allOf = [
+        { field = "type", equals = "Microsoft.Authorization/roleAssignments" },
+        {
+          # "Value count": loop over the GUID list and count how many match this
+          # assignment's roleDefinitionId. More than 0 = it's a privileged role.
+          count = {
+            value = "[parameters('privilegedRoleIds')]"
+            name  = "roleId"
+            where = {
+              # roleDefinitionId is a full path that includes the subscription, e.g.
+              # /subscriptions/<sub>/providers/Microsoft.Authorization/roleDefinitions/<guid>,
+              # so match on the ending only. That keeps the rule free of subscription IDs.
+              field = "Microsoft.Authorization/roleAssignments/roleDefinitionId"
+              like  = "[concat('*/', current('roleId'))]"
+            }
+          }
+          greater = 0
+        }
+      ]
+    }
+    then = { effect = "[parameters('effect')]" }
+  })
+}
