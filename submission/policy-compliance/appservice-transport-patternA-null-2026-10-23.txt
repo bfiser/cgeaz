@@ -1,0 +1,15 @@
+# Pattern A test: sites/siteConfig.* aliases evaluate to null (captured 2026-10-23T19:36:21Z)
+# Function apps are HTTPS-only with TLS 1.2 / FTPS Disabled (see appservice-transport-expected-2026-10-23.txt),
+# yet the engine reads minTlsVersion = null and flags them. Conclusion: switch TLS/FTPS checks to the sites/config child.
+== func-grc-collectors-mjdbk1
+    state: NonCompliant  at 2026-10-23T19:29:14.005685+00:00
+    True  type = Microsoft.Web/sites
+    True  properties.siteConfig.minTlsVersion = null
+== func-grc-reporting-s1vtcs
+    state: NonCompliant  at 2026-10-23T19:23:10.996958+00:00
+    True  type = Microsoft.Web/sites
+    True  properties.siteConfig.minTlsVersion = null
+== app-fafo-74a9c6
+    state: NonCompliant  at 2026-10-23T18:06:32.153814+00:00
+    True  type = Microsoft.Web/sites
+    True  properties.httpsOnly = false

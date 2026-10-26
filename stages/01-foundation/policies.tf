@@ -141,8 +141,9 @@ resource "azurerm_management_group_policy_set_definition" "grc_baseline" {
     tagEffect                 = { type = "String", defaultValue = "Audit" }
     publicBlobEffect          = { type = "String", defaultValue = "Deny" }
     workspaceId               = { type = "String" }
-    storageTlsEffect          = { type = "String", defaultValue = "Audit" } # Custom 1 (storage min TLS): its own effect knob, independent of the others, so each control escalates on its own schedule.
-    appServiceTransportEffect = { type = "String", defaultValue = "Audit" } # Custom 2 (App Service transport): its own escalation knob.
+    storageTlsEffect          = { type = "String", defaultValue = "Audit" }            # Custom 1 (storage min TLS): its own effect knob, independent of the others, so each control escalates on its own schedule.
+    appServiceTransportEffect = { type = "String", defaultValue = "Audit" }            # Custom 2 (App Service transport): its own escalation knob.
+    appServiceTlsFtpsEffect   = { type = "String", defaultValue = "AuditIfNotExists" } # Custom 2b
   })
 
   policy_definition_reference {
@@ -184,6 +185,14 @@ resource "azurerm_management_group_policy_set_definition" "grc_baseline" {
       effect = { value = "[parameters('appServiceTransportEffect')]" }
     })
   }
+
+  # Custom 2b: App Service TLS/FTPS via the config child (AuditIfNotExists).
+  policy_definition_reference {
+    policy_definition_id = azurerm_policy_definition.appservice_tls_ftps.id
+    parameter_values = jsonencode({
+      effect = { value = "[parameters('appServiceTlsFtpsEffect')]" }
+    })
+  }
 }
 
 resource "azurerm_management_group_policy_assignment" "grc_baseline" {
@@ -199,6 +208,7 @@ resource "azurerm_management_group_policy_assignment" "grc_baseline" {
     workspaceId               = { value = azurerm_log_analytics_workspace.grc.id }
     storageTlsEffect          = { value = var.storage_tls_policy_effect }          # Custom 1: the escalation knob. The value comes from a validated Terraform variable, so changing Audit -> Deny is a reviewed PR, not a portal click.
     appServiceTransportEffect = { value = var.appservice_transport_policy_effect } # Custom 2: escalation knob, changed only by reviewed PR.
+    appServiceTlsFtpsEffect   = { value = var.appservice_tls_ftps_policy_effect }  # Custom 2b: escalation knob (AuditIfNotExists or Disabled).
   })
 
   # Remediation effects (deployIfNotExists) execute AS this identity.
