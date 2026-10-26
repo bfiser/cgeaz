@@ -1,0 +1,51 @@
+# NSG management ports: expected results, captured BEFORE deploying policy 4 (2026-10-26T19:45:02Z)
+# Predictions: nsg-fafo-open = NonCompliant (ports as ARRAY ['22','3389'], source Internet).
+#              nsg-cge-test-safe = Compliant (443 from Internet; 22 only from 10.0.0.0/8).
+#              nsg-cge-test-range = Compliant: KNOWN LIMIT (policy does not evaluate ranges; gate rule does).
+# Child rule resources may also appear as separate results (branch 2); same predictions per rule.
+{
+  "nsg": "nsg-fafo-open",
+  "rules": [
+    {
+      "port": null,
+      "ports": [
+        "22",
+        "3389"
+      ],
+      "rule": "allow-mgmt-from-internet",
+      "src": "Internet",
+      "srcs": []
+    }
+  ]
+}
+{
+  "nsg": "nsg-cge-test-range",
+  "rules": [
+    {
+      "port": "20-30",
+      "ports": [],
+      "rule": "allow-range-internet",
+      "src": "Internet",
+      "srcs": []
+    }
+  ]
+}
+{
+  "nsg": "nsg-cge-test-safe",
+  "rules": [
+    {
+      "port": "443",
+      "ports": [],
+      "rule": "allow-https-internet",
+      "src": "Internet",
+      "srcs": []
+    },
+    {
+      "port": "22",
+      "ports": [],
+      "rule": "allow-ssh-private",
+      "src": "10.0.0.0/8",
+      "srcs": []
+    }
+  ]
+}

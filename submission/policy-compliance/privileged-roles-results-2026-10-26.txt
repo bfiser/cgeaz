@@ -1,0 +1,29 @@
+# Policy 3 (cge-audit-privileged-roles) results, captured 2026-10-26T19:34:21Z
+# Compare: privileged-roles-expected-2026-10-26.txt. Prediction confirmed: 2 NonCompliant
+# (owner @ subscription, id-fafo-batch Contributor @ rg-fafo-prod); 22 non-privileged Compliant (control group);
+# 3 management-group-scope grants absent (not evaluated by Azure Policy -> role-assignment collector).
+state	principalId	roleGuid	scope
+Compliant	773d01c8-3dd1-43a0-b4a8-909fdb6e19c8	ba92f5b4-2d11-453d-a403-e96b0029c9fe	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1/resourceGroups/rg-grc-tfstate
+Compliant	c6361058-5972-4123-8fe0-518925586d92	ba92f5b4-2d11-453d-a403-e96b0029c9fe	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1/resourceGroups/rg-grc-tfstate
+Compliant	499779bd-c72b-4050-92db-3fc9d12ae1c1	acdd72a7-3385-48ef-bd42-f606fba81ae7	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1/resourceGroups/rg-grc-sandbox-dev
+Compliant	773d01c8-3dd1-43a0-b4a8-909fdb6e19c8	ba92f5b4-2d11-453d-a403-e96b0029c9fe	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1/resourceGroups/rg-grc-evidence-dev/providers/Microsoft.Storage/storageAccounts/stgrcevidmjdbk1
+Compliant	b96fb3c5-ca9b-464f-8d06-52ba3c7e0319	ba92f5b4-2d11-453d-a403-e96b0029c9fe	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1/resourceGroups/rg-grc-evidence-dev/providers/Microsoft.Storage/storageAccounts/stgrcevidmjdbk1
+NonCompliant	d0900fa0-a0cb-489b-a231-151a392c7e04	b24988ac-6180-42a0-ab88-20f7382dd24c	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1/resourceGroups/rg-fafo-prod
+Compliant	16c7b330-87e1-44f2-bd9a-251e13b6bb09	8480c0f0-4509-4229-9339-7c10018cb8c4	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1
+Compliant	35fc6fad-5221-47a8-baba-a6a6916d1be3	92aaf0da-9dab-42b6-94a3-d43ce8d16293	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1
+Compliant	8f0d09cb-1929-4ab4-b4b6-0f67d1bfaa3c	39bc4728-0917-49c7-9d2c-d95423bc2eb4	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1
+Compliant	6fc83ec7-07c1-4812-98c6-c0ec686b1d0b	ada52afe-776a-4b4d-a8f2-55670d3d8178	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1
+Compliant	16c7b330-87e1-44f2-bd9a-251e13b6bb09	d5a2ae44-610b-4500-93be-660a0c5f5ca6	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1
+Compliant	6fc83ec7-07c1-4812-98c6-c0ec686b1d0b	5e93ba01-8f92-4c7a-b12a-801e3df23824	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1
+Compliant	6fc83ec7-07c1-4812-98c6-c0ec686b1d0b	d5a2ae44-610b-4500-93be-660a0c5f5ca6	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1
+Compliant	6fc83ec7-07c1-4812-98c6-c0ec686b1d0b	c5c82243-e78e-43f9-8428-793bba85b28e	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1
+Compliant	558dd0b5-cc6d-49bb-87e1-25cb85009432	d24ecba3-c1f4-40fa-a7bb-4588a071e8fd	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1
+Compliant	16c7b330-87e1-44f2-bd9a-251e13b6bb09	68ac31b4-936a-4046-a6d2-ba6f8a757bf6	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1
+Compliant	25240bab-13a0-43d6-a83a-c70ed496509a	0f641de8-0b88-4198-bdef-bd8b45ceba96	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1
+Compliant	6fc83ec7-07c1-4812-98c6-c0ec686b1d0b	7e559ce2-48d7-4b27-9128-fa1b247f1308	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1
+NonCompliant	773d01c8-3dd1-43a0-b4a8-909fdb6e19c8	8e3af657-a8ff-443c-a75c-2fe8c4bcb635	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1
+Compliant	35fc6fad-5221-47a8-baba-a6a6916d1be3	9980e02c-c2be-4d73-94e8-173b1dc7cf3c	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1
+Compliant	25240bab-13a0-43d6-a83a-c70ed496509a	1e241071-0855-49ea-94dc-649edcd759de	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1
+Compliant	16c7b330-87e1-44f2-bd9a-251e13b6bb09	c5c82243-e78e-43f9-8428-793bba85b28e	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1
+Compliant	166b3a46-0efd-4806-96e7-86bff48e6d54	0b6ca2e8-2cdc-4bd6-b896-aa3d8c21fc35	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1
+Compliant	35fc6fad-5221-47a8-baba-a6a6916d1be3	f1a07417-d97a-45cb-824c-7a7467783830	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1

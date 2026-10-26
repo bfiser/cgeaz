@@ -253,3 +253,145 @@ resource "azurerm_policy_definition" "privileged_role_assignments" {
     then = { effect = "[parameters('effect')]" }
   })
 }
+
+# --- Custom 4: NSG rules must not open SSH/RDP to the internet ---
+# 800-53: SC-7 (boundary protection), SC-7(5) (deny by default), AC-17 (remote access)
+# CSF 2.0: PR.IR-01 (networks protected from unauthorized access)
+# Why custom: Defender raised NO finding for the seed NSG's 22/3389-from-Internet
+# rule (POA&M 2026-10-26: flow-logs finding only). Its management-port check is
+# VM-based, and this NSG is not attached to a VM. An unattached open NSG is one
+# association away from exposing whatever it is attached to next.
+#
+# Rules live in two forms, so the rule has two branches:
+#   1. Inline in the NSG (securityRules[*] array): loop with count.
+#   2. Standalone child resource (networkSecurityGroups/securityRules): direct fields.
+# Each form can list sources and ports as a single value OR an array (the seed
+# rule uses the array form: destinationPortRanges = ["22","3389"], single value
+# null). Nested counts check both. A single-value-only rule would have missed it.
+#
+# Known limit: port RANGES (e.g. "20-30") are not evaluated here. The PR gate
+# (policy/nsg_mgmt_ports.rego) does evaluate ranges for Terraform-managed NSGs.
+# Evidence of the limit: nsg-cge-test-range (see submission/).
+#
+# BLAST RADIUS
+#   Audit (default): changes nothing; open NSGs are reported.
+#   Deny: blocks creating or updating any NSG or rule that opens 22/3389 to the
+#     internet. An existing non-compliant NSG cannot be updated at all (even for
+#     an unrelated rule) until the open rule is removed. Seed-estate re-runs fail
+#     at the NSG step. Strongest Deny candidate once the seed NSG is remediated;
+#     the replacement for internet SSH/RDP is Azure Bastion or just-in-time access.
+#   Rollback: set nsg_mgmt_ports_policy_effect back to "Audit" (one-line PR).
+
+resource "azurerm_policy_definition" "nsg_mgmt_ports" {
+  name                = "cge-nsg-no-internet-mgmt-ports"
+  display_name        = "NSG rules must not allow SSH (22) or RDP (3389) from the internet"
+  policy_type         = "Custom"
+  mode                = "All" # child securityRules resources have no tags/location; Indexed would skip branch 2
+  management_group_id = azurerm_management_group.sandbox.id
+
+  metadata = jsonencode({
+    category    = "Network"
+    nist_800_53 = ["SC-7", "SC-7(5)", "AC-17"]
+    csf_2_0     = ["PR.IR-01"]
+  })
+
+  parameters = jsonencode({
+    effect = {
+      type          = "String"
+      allowedValues = ["Audit", "Deny", "Disabled"]
+      defaultValue  = "Audit"
+    }
+    managementPorts = {
+      type         = "Array"
+      metadata     = { displayName = "Management ports that must not be open to the internet" }
+      defaultValue = ["22", "3389"]
+    }
+    internetSources = {
+      type         = "Array"
+      metadata     = { displayName = "Source prefixes that mean 'the internet'" }
+      defaultValue = ["*", "Internet", "0.0.0.0/0", "::/0"]
+    }
+  })
+
+  policy_rule = jsonencode({
+    if = {
+      anyOf = [
+        # Branch 1: rules inline in the NSG. Count the rules that are open; more than 0 = non-compliant.
+        {
+          allOf = [
+            { field = "type", equals = "Microsoft.Network/networkSecurityGroups" },
+            {
+              count = {
+                field = "Microsoft.Network/networkSecurityGroups/securityRules[*]"
+                where = {
+                  allOf = [
+                    { field = "Microsoft.Network/networkSecurityGroups/securityRules[*].access", equals = "Allow" },
+                    { field = "Microsoft.Network/networkSecurityGroups/securityRules[*].direction", equals = "Inbound" },
+                    {
+                      anyOf = [ # source is the internet: single value, or any entry in the list
+                        { field = "Microsoft.Network/networkSecurityGroups/securityRules[*].sourceAddressPrefix", in = "[parameters('internetSources')]" },
+                        {
+                          count = {
+                            field = "Microsoft.Network/networkSecurityGroups/securityRules[*].sourceAddressPrefixes[*]"
+                            where = { field = "Microsoft.Network/networkSecurityGroups/securityRules[*].sourceAddressPrefixes[*]", in = "[parameters('internetSources')]" }
+                          }
+                          greater = 0
+                        }
+                      ]
+                    },
+                    {
+                      anyOf = [ # port is a management port or "*": single value, or any entry in the list
+                        { field = "Microsoft.Network/networkSecurityGroups/securityRules[*].destinationPortRange", in = "[union(parameters('managementPorts'), createArray('*'))]" },
+                        {
+                          count = {
+                            field = "Microsoft.Network/networkSecurityGroups/securityRules[*].destinationPortRanges[*]"
+                            where = { field = "Microsoft.Network/networkSecurityGroups/securityRules[*].destinationPortRanges[*]", in = "[union(parameters('managementPorts'), createArray('*'))]" }
+                          }
+                          greater = 0
+                        }
+                      ]
+                    }
+                  ]
+                }
+              }
+              greater = 0
+            }
+          ]
+        },
+        # Branch 2: a standalone rule resource. Same four checks, directly on its fields.
+        {
+          allOf = [
+            { field = "type", equals = "Microsoft.Network/networkSecurityGroups/securityRules" },
+            { field = "Microsoft.Network/networkSecurityGroups/securityRules/access", equals = "Allow" },
+            { field = "Microsoft.Network/networkSecurityGroups/securityRules/direction", equals = "Inbound" },
+            {
+              anyOf = [
+                { field = "Microsoft.Network/networkSecurityGroups/securityRules/sourceAddressPrefix", in = "[parameters('internetSources')]" },
+                {
+                  count = {
+                    field = "Microsoft.Network/networkSecurityGroups/securityRules/sourceAddressPrefixes[*]"
+                    where = { field = "Microsoft.Network/networkSecurityGroups/securityRules/sourceAddressPrefixes[*]", in = "[parameters('internetSources')]" }
+                  }
+                  greater = 0
+                }
+              ]
+            },
+            {
+              anyOf = [
+                { field = "Microsoft.Network/networkSecurityGroups/securityRules/destinationPortRange", in = "[union(parameters('managementPorts'), createArray('*'))]" },
+                {
+                  count = {
+                    field = "Microsoft.Network/networkSecurityGroups/securityRules/destinationPortRanges[*]"
+                    where = { field = "Microsoft.Network/networkSecurityGroups/securityRules/destinationPortRanges[*]", in = "[union(parameters('managementPorts'), createArray('*'))]" }
+                  }
+                  greater = 0
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+    then = { effect = "[parameters('effect')]" }
+  })
+}

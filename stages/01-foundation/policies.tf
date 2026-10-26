@@ -146,6 +146,7 @@ resource "azurerm_management_group_policy_set_definition" "grc_baseline" {
     appServiceTransportEffect = { type = "String", defaultValue = "Audit" }            # Custom 2 (App Service transport): its own escalation knob.
     appServiceTlsFtpsEffect   = { type = "String", defaultValue = "AuditIfNotExists" } # Custom 2b
     privilegedRoleEffect      = { type = "String", defaultValue = "Audit" }            # Custom 3
+    nsgMgmtPortsEffect        = { type = "String", defaultValue = "Audit" }            # Custom 4
   })
 
   policy_definition_reference {
@@ -204,6 +205,14 @@ resource "azurerm_management_group_policy_set_definition" "grc_baseline" {
       effect = { value = "[parameters('privilegedRoleEffect')]" }
     })
   }
+
+  # Custom 4: NSG management ports (800-53 SC-7, SC-7(5), AC-17). Ports and sources use the definition's defaults.
+  policy_definition_reference {
+    policy_definition_id = azurerm_policy_definition.nsg_mgmt_ports.id
+    parameter_values = jsonencode({
+      effect = { value = "[parameters('nsgMgmtPortsEffect')]" }
+    })
+  }
 }
 
 resource "azurerm_management_group_policy_assignment" "grc_baseline" {
@@ -221,6 +230,7 @@ resource "azurerm_management_group_policy_assignment" "grc_baseline" {
     appServiceTransportEffect = { value = var.appservice_transport_policy_effect } # Custom 2: escalation knob, changed only by reviewed PR.
     appServiceTlsFtpsEffect   = { value = var.appservice_tls_ftps_policy_effect }  # Custom 2b: escalation knob (AuditIfNotExists or Disabled).
     privilegedRoleEffect      = { value = var.privileged_role_policy_effect }      # Custom 3: escalation knob (Audit recommended)
+    nsgMgmtPortsEffect        = { value = var.nsg_mgmt_ports_policy_effect }       # Custom 4: escalation knob (Deny candidate)
   })
 
   # Remediation effects (deployIfNotExists) execute AS this identity.

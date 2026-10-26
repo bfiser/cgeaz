@@ -83,3 +83,14 @@ variable "privileged_role_policy_effect" {
     error_message = "privileged_role_policy_effect must be Audit, Deny, or Disabled."
   }
 }
+
+variable "nsg_mgmt_ports_policy_effect" {
+  description = "Effect for the NSG management-port policy (Audit while the seed NSG is open; Deny candidate after)."
+  type        = string
+  default     = "Audit"
+
+  validation {
+    condition     = contains(["Audit", "Deny", "Disabled"], var.nsg_mgmt_ports_policy_effect)
+    error_message = "nsg_mgmt_ports_policy_effect must be Audit, Deny, or Disabled."
+  }
+}
