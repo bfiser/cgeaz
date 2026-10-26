@@ -72,3 +72,14 @@ variable "appservice_tls_ftps_policy_effect" {
     error_message = "appservice_tls_ftps_policy_effect must be AuditIfNotExists or Disabled."
   }
 }
+
+variable "privileged_role_policy_effect" {
+  description = "Effect for the privileged role-assignment policy (Audit recommended; see blast radius)."
+  type        = string
+  default     = "Audit"
+
+  validation {
+    condition     = contains(["Audit", "Deny", "Disabled"], var.privileged_role_policy_effect)
+    error_message = "privileged_role_policy_effect must be Audit, Deny, or Disabled."
+  }
+}

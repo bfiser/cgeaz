@@ -1,4 +1,5 @@
-# Three policies, one initiative, assigned once at mg-grc-sandbox.
+# Three taught policies + federal-track customs (policies-federal.tf), one initiative,
+# assigned once at mg-grc-sandbox.
 # Every subscription that ever joins the sandbox group inherits all of it. (CSF: GV.PO, PR.DS, PR.PS)
 
 # --- 1. Require the `env` tag on resource groups (inventory hygiene; POA&M owner resolution) ---
@@ -144,6 +145,7 @@ resource "azurerm_management_group_policy_set_definition" "grc_baseline" {
     storageTlsEffect          = { type = "String", defaultValue = "Audit" }            # Custom 1 (storage min TLS): its own effect knob, independent of the others, so each control escalates on its own schedule.
     appServiceTransportEffect = { type = "String", defaultValue = "Audit" }            # Custom 2 (App Service transport): its own escalation knob.
     appServiceTlsFtpsEffect   = { type = "String", defaultValue = "AuditIfNotExists" } # Custom 2b
+    privilegedRoleEffect      = { type = "String", defaultValue = "Audit" }            # Custom 3
   })
 
   policy_definition_reference {
@@ -193,6 +195,15 @@ resource "azurerm_management_group_policy_set_definition" "grc_baseline" {
       effect = { value = "[parameters('appServiceTlsFtpsEffect')]" }
     })
   }
+
+  # Custom 3: privileged role assignments (800-53 AC-6, AC-6(5), AC-2(7)).
+  # The role list uses the definition's default; only the effect is wired through.
+  policy_definition_reference {
+    policy_definition_id = azurerm_policy_definition.privileged_role_assignments.id
+    parameter_values = jsonencode({
+      effect = { value = "[parameters('privilegedRoleEffect')]" }
+    })
+  }
 }
 
 resource "azurerm_management_group_policy_assignment" "grc_baseline" {
@@ -209,6 +220,7 @@ resource "azurerm_management_group_policy_assignment" "grc_baseline" {
     storageTlsEffect          = { value = var.storage_tls_policy_effect }          # Custom 1: the escalation knob. The value comes from a validated Terraform variable, so changing Audit -> Deny is a reviewed PR, not a portal click.
     appServiceTransportEffect = { value = var.appservice_transport_policy_effect } # Custom 2: escalation knob, changed only by reviewed PR.
     appServiceTlsFtpsEffect   = { value = var.appservice_tls_ftps_policy_effect }  # Custom 2b: escalation knob (AuditIfNotExists or Disabled).
+    privilegedRoleEffect      = { value = var.privileged_role_policy_effect }      # Custom 3: escalation knob (Audit recommended)
   })
 
   # Remediation effects (deployIfNotExists) execute AS this identity.

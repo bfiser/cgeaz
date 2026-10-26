@@ -1,0 +1,12 @@
+# Policy 2 split (2a + 2b): results AFTER redesign, captured 2026-10-26T15:18:49Z
+# Compare: appservice-transport-expected-2026-10-23.txt (real values) and
+#          appservice-transport-patternA-null-2026-10-23.txt (failed first design).
+# Hardened Function apps Compliant on 2b = engine reads real config values (null cannot pass 'in').
+== cge-appservice-secure-transport
+    app-fafo-74a9c6  NonCompliant  2026-10-26T14:53:00.356730+00:00
+    func-grc-reporting-s1vtcs  Compliant  2026-10-26T14:52:28.876938+00:00
+    func-grc-collectors-mjdbk1  Compliant  2026-10-26T14:52:28.232458+00:00
+== cge-appservice-tls-ftps
+    app-fafo-74a9c6  NonCompliant  2026-10-26T14:53:00.893904+00:00
+    func-grc-reporting-s1vtcs  Compliant  2026-10-26T14:52:29.502485+00:00
+    func-grc-collectors-mjdbk1  Compliant  2026-10-26T14:52:29.022384+00:00

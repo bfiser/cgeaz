@@ -1,0 +1,10 @@
+# Privileged role assignments (Owner/Contributor/UAA): expected results, captured BEFORE deploying policy 3
+# Captured: 2026-10-26T18:38:25Z. IDs only (no names: guest UPN contains PII).
+# Known principals: 773d01c8 = subscription owner (human, #EXT# guest); c6361058 = GitHub OIDC (CI);
+#                   d0900fa0 = id-fafo-batch (seed workload identity).
+# Prediction: policy at mg-grc-sandbox flags subscription/RG-scope grants only; MG-scope grants invisible to policy.
+Owner	773d01c8-3dd1-43a0-b4a8-909fdb6e19c8	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1
+Contributor	d0900fa0-a0cb-489b-a231-151a392c7e04	/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1/resourceGroups/rg-fafo-prod
+Owner	773d01c8-3dd1-43a0-b4a8-909fdb6e19c8	/providers/Microsoft.Management/managementGroups/mg-grc-sandbox
+Owner	773d01c8-3dd1-43a0-b4a8-909fdb6e19c8	/providers/Microsoft.Management/managementGroups/mg-grc
+Contributor	c6361058-5972-4123-8fe0-518925586d92	/providers/Microsoft.Management/managementGroups/mg-grc
