@@ -60,3 +60,15 @@ variable "appservice_transport_policy_effect" {
     error_message = "appservice_transport_policy_effect must be Audit, Deny, or Disabled."
   }
 }
+
+variable "appservice_tls_ftps_policy_effect" {
+  description = "Effect for the App Service TLS/FTPS policy (AuditIfNotExists or Disabled; it cannot Deny)."
+  type        = string
+  default     = "AuditIfNotExists"
+
+  # Reject typos at plan time. Deny is deliberately not allowed: AINE has no Deny form.
+  validation {
+    condition     = contains(["AuditIfNotExists", "Disabled"], var.appservice_tls_ftps_policy_effect)
+    error_message = "appservice_tls_ftps_policy_effect must be AuditIfNotExists or Disabled."
+  }
+}

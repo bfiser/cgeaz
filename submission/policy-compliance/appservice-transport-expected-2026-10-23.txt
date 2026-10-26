@@ -1,0 +1,6 @@
+# App Service transport: expected results, captured BEFORE deploying cge-appservice-secure-transport
+# Captured: 2026-10-23T17:42:24Z. Source: site (httpsOnly) + config/web (others).
+app	httpsOnly	minTls	scmMinTls	ftps
+func-grc-collectors-mjdbk1	false	1.2	1.2	Disabled
+func-grc-reporting-s1vtcs	false	1.2	1.2	Disabled
+app-fafo-74a9c6	false	1.0	1.2	AllAllowed

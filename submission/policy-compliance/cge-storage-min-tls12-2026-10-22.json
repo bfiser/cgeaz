@@ -1,0 +1,37 @@
+[
+  {
+    "assignment": "cge-grc-baseline",
+    "evaluated": "2026-10-22T16:17:09.302225+00:00",
+    "policy": "cge-storage-min-tls12",
+    "resource": "/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1/resourcegroups/rg-grc-tfstate/providers/microsoft.storage/storageaccounts/stgrctfstate74a9c6be",
+    "state": "Compliant"
+  },
+  {
+    "assignment": "cge-grc-baseline",
+    "evaluated": "2026-10-22T16:17:08.795354+00:00",
+    "policy": "cge-storage-min-tls12",
+    "resource": "/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1/resourcegroups/rg-grc-sandbox-dev/providers/microsoft.storage/storageaccounts/stgrcseed19778",
+    "state": "NonCompliant"
+  },
+  {
+    "assignment": "cge-grc-baseline",
+    "evaluated": "2026-10-22T16:17:08.561270+00:00",
+    "policy": "cge-storage-min-tls12",
+    "resource": "/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1/resourcegroups/rg-grc-evidence-dev/providers/microsoft.storage/storageaccounts/stgrcrpts1vtcs",
+    "state": "Compliant"
+  },
+  {
+    "assignment": "cge-grc-baseline",
+    "evaluated": "2026-10-22T16:17:08.354216+00:00",
+    "policy": "cge-storage-min-tls12",
+    "resource": "/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1/resourcegroups/rg-grc-evidence-dev/providers/microsoft.storage/storageaccounts/stgrcfuncmjdbk1",
+    "state": "Compliant"
+  },
+  {
+    "assignment": "cge-grc-baseline",
+    "evaluated": "2026-10-22T16:17:08.213544+00:00",
+    "policy": "cge-storage-min-tls12",
+    "resource": "/subscriptions/74a9c6be-f18a-4f85-90de-cb55aaa149b1/resourcegroups/rg-grc-evidence-dev/providers/microsoft.storage/storageaccounts/stgrcevidmjdbk1",
+    "state": "Compliant"
+  }
+]

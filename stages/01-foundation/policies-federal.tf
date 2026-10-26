@@ -67,45 +67,45 @@ resource "azurerm_policy_definition" "storage_min_tls" {
   })
 }
 
-# --- Custom 2: App Service apps must enforce encrypted transport ---
-# 800-53: SC-8, SC-8(1) (transmission confidentiality and integrity)
-#         SC-23 (session authenticity)
-#         IA-5(1) (passwords sent only when protected; plain FTP sends them in clear text)
-# CSF 2.0: PR.DS-02 (data in transit)
+# --- Custom 2: App Service apps must enforce encrypted transport (2a + 2b) ---
+# 800-53: SC-8, SC-8(1), SC-23, IA-5(1)   CSF 2.0: PR.DS-02
 # Why custom: unlike storage, App Service still ACCEPTS TLS 1.0, plain HTTP,
-# and plain FTP in 2026 (verified on the seed estate, 2026-10-23). Built-ins
-# split this across several policies; one definition gives one
-# transport-security result per app. Function apps are covered too (same
-# resource type). Also checks the SCM/Kudu deployment site's TLS, which is
-# commonly missed because it is a separate setting.
+# and plain FTP in 2026 (verified on the seed estate, 2026-10-23). Covers web
+# apps and Function apps (same resource type), plus the SCM/Kudu deployment
+# site's TLS, which is a separate and commonly missed setting (Defender's
+# built-ins do not check it).
 #
-# Implementation note: TLS and FTPS live on the sites/config child resource;
-# the site resource returns them as null on a plain read. This rule uses the
-# sites/siteConfig.* aliases and was verified against a control group
-# (hardened Function apps) to confirm the engine evaluates real values.
+# Why two definitions (found by testing, 2026-10-23):
+#   httpsOnly lives on the site resource, so a simple rule works and can Deny (2a).
+#   TLS and FTPS live on the sites/config child. A first version read them via
+#   the sites/siteConfig.* aliases; once the Function apps were HTTPS-only, the
+#   engine evaluated minTlsVersion = null and flagged hardened apps. The aliases
+#   exist but are not populated on the site. So 2b checks the config child
+#   directly with AuditIfNotExists. AINE cannot block, so the PR gate
+#   (policy/appservice_transport.rego) is the preventive layer for TLS/FTPS.
+#   Evidence: submission/policy-compliance/appservice-transport-*.txt
 #
 # BLAST RADIUS
-#   Audit (default): changes nothing; non-compliant apps are reported.
-#   Deny: blocks creating or updating any app, INCLUDING this pipeline's own
-#     Function apps, that is not HTTPS-only with TLS 1.2+ and FTPS-only or
-#     FTP disabled. Fix the Function apps in code before escalating.
-#   Gap under Deny: TLS/FTPS can also be changed through the sites/config
-#     child resource, which a rule on sites does not intercept. Audit still
-#     catches it at the next evaluation.
-#   Could break: plain-HTTP clients (redirected to HTTPS); FTP-based deploy
-#     tools (switch to FTPS, or zip/OIDC deploy).
-#   Rollback: set appservice_transport_policy_effect back to "Audit" (one-line PR).
+#   2a Audit (default): reports apps serving plain HTTP.
+#   2a Deny: blocks creating or updating any app that is not HTTPS-only,
+#     including this pipeline's Function apps (fixed in code 2026-10-23).
+#     Could break: plain-HTTP clients (redirected to HTTPS).
+#   2b AuditIfNotExists (default): reports only; cannot block anything.
+#   Rollback: set the effect variable back (one-line PR).
+#   2a keeps its Azure name (cge-appservice-secure-transport): names are
+#   immutable IDs, and keeping it preserves the compliance history.
 
+# 2a: HTTPS-only (site property; Deny-capable)
 resource "azurerm_policy_definition" "appservice_transport" {
   name                = "cge-appservice-secure-transport"
-  display_name        = "App Service apps must enforce HTTPS, TLS 1.2+, and FTPS-only or no FTP"
+  display_name        = "App Service apps must be HTTPS-only"
   policy_type         = "Custom"
   mode                = "Indexed"
-  management_group_id = azurerm_management_group.sandbox.id # MG scope: inherits to every subscription below
+  management_group_id = azurerm_management_group.sandbox.id
 
   metadata = jsonencode({
     category    = "App Service"
-    nist_800_53 = ["SC-8", "SC-8(1)", "SC-23", "IA-5(1)"]
+    nist_800_53 = ["SC-8", "SC-8(1)", "SC-23"]
     csf_2_0     = ["PR.DS-02"]
   })
 
@@ -113,7 +113,7 @@ resource "azurerm_policy_definition" "appservice_transport" {
     effect = {
       type          = "String"
       allowedValues = ["Audit", "Deny", "Disabled"]
-      defaultValue  = "Audit" # measure first; escalate by reviewed PR
+      defaultValue  = "Audit"
     }
   })
 
@@ -121,20 +121,54 @@ resource "azurerm_policy_definition" "appservice_transport" {
     if = {
       allOf = [
         { field = "type", equals = "Microsoft.Web/sites" }, # web apps AND Function apps
-        {
-          anyOf = [ # any one weakness makes the app non-compliant
-            # Plain HTTP still served. notEquals true: a missing value counts as weak.
-            { field = "Microsoft.Web/sites/httpsOnly", notEquals = true },
-            # App minimum TLS below 1.2 (App Service uses "1.0" ... "1.3", not "TLS1_2").
-            { field = "Microsoft.Web/sites/siteConfig.minTlsVersion", notIn = ["1.2", "1.3"] },
-            # Same check for the SCM/Kudu deployment site.
-            { field = "Microsoft.Web/sites/siteConfig.scmMinTlsVersion", notIn = ["1.2", "1.3"] },
-            # Plain FTP allowed. Only FtpsOnly or Disabled pass.
-            { field = "Microsoft.Web/sites/siteConfig.ftpsState", notIn = ["FtpsOnly", "Disabled"] }
-          ]
-        }
+        # Plain HTTP still served. notEquals true: a missing value counts as weak.
+        { field = "Microsoft.Web/sites/httpsOnly", notEquals = true }
       ]
     }
     then = { effect = "[parameters('effect')]" }
+  })
+}
+
+# 2b: TLS 1.2+ (app and SCM sites) and no plain FTP (config child; audit-only)
+resource "azurerm_policy_definition" "appservice_tls_ftps" {
+  name                = "cge-appservice-tls-ftps"
+  display_name        = "App Service apps must use TLS 1.2+ (app and SCM sites) and FTPS-only or no FTP"
+  policy_type         = "Custom"
+  mode                = "Indexed"
+  management_group_id = azurerm_management_group.sandbox.id
+
+  metadata = jsonencode({
+    category    = "App Service"
+    nist_800_53 = ["SC-8", "SC-8(1)", "IA-5(1)"]
+    csf_2_0     = ["PR.DS-02"]
+  })
+
+  parameters = jsonencode({
+    effect = {
+      type          = "String"
+      allowedValues = ["AuditIfNotExists", "Disabled"] # AINE has no Deny form
+      defaultValue  = "AuditIfNotExists"
+    }
+  })
+
+  policy_rule = jsonencode({
+    if = { field = "type", equals = "Microsoft.Web/sites" } # every app...
+    then = {
+      effect = "[parameters('effect')]"
+      details = {
+        # ...is checked by looking up its config child (sites/<app>/config/web),
+        # where the real TLS and FTPS values live.
+        type = "Microsoft.Web/sites/config"
+        name = "web"
+        # Compliant only if ALL three are good. "in" means a missing value fails (weak).
+        existenceCondition = {
+          allOf = [
+            { field = "Microsoft.Web/sites/config/minTlsVersion", in = ["1.2", "1.3"] },
+            { field = "Microsoft.Web/sites/config/scmMinTlsVersion", in = ["1.2", "1.3"] },
+            { field = "Microsoft.Web/sites/config/ftpsState", in = ["FtpsOnly", "Disabled"] }
+          ]
+        }
+      }
+    }
   })
 }
