@@ -30,3 +30,13 @@ output "remediation_identity_principal_id" {
   description = "Principal ID — use to filter the Activity Log for automated changes."
   value       = azurerm_user_assigned_identity.remediation.principal_id
 }
+
+output "root_management_group_id" {
+  description = "Top of the governed hierarchy (mg-grc). The role-assignment collector walks everything below it."
+  value       = azurerm_management_group.grc.id
+}
+
+output "root_management_group_name" {
+  description = "Name of the root management group, passed to the role-assignment collector as an app setting."
+  value       = azurerm_management_group.grc.name
+}
