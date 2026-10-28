@@ -74,7 +74,9 @@ resource "azurerm_linux_function_app" "reporting" {
     "REPORTS_ACCOUNT_URL"            = data.azurerm_storage_account.evidence.primary_blob_endpoint
     "REPORTS_CONTAINER"              = "reports"
     "SCM_DO_BUILD_DURING_DEPLOYMENT" = "true"
-    "ENABLE_ORYX_BUILD"              = "true"
+    # ENABLE_ORYX_BUILD intentionally omitted: `az functionapp deployment source config-zip
+    # --build-remote` deletes it on every deploy (it's redundant with SCM_DO_BUILD_DURING_DEPLOYMENT),
+    # so declaring it here caused recurring drift. Found 2026-10-28 (CLI: "Removing ENABLE_ORYX_BUILD").
   }
 
   tags = local.common_tags

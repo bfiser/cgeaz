@@ -1,0 +1,14 @@
+# Role-assignment collector: first run (HTTP trigger), 2026-10-28
+# Predictions written before running: MGs 2, subs 1, privileged 5, assignments ~28, MG-scope 4.
+# Actual: MGs 2, subs 1, privileged 5, assignments 30, MG-scope 6.
+# +2 MG-scope: remediation identity Monitoring Contributor @ mg-grc-sandbox (in my own stage 01 code; missed in prediction) + remediation identity Storage Account Contributor @ mg-grc-sandbox (stage 06). All 6 MG grants explained; none unknown.
+# Deploy note: functions were NOT registered until syncfunctiontriggers was called; without it the 05:15 timer would not fire.
+{
+  "runId": "c8d7eb1a-63de-4d4a-8647-8826200cbb61",
+  "collectedAt": "2026-10-28T14:23:43.312839+00:00",
+  "managementGroups": 2,
+  "subscriptions": 1,
+  "assignments": 30,
+  "privileged": 5,
+  "managementGroupScope": 6
+}
