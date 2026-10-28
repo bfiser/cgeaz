@@ -1,0 +1,8 @@
+# Policy 4 (cge-nsg-no-internet-mgmt-ports) results, captured 2026-10-26T20:28:47Z
+# Compare: nsg-mgmt-ports-expected-2026-10-26.txt. Child rules shown as nsg/rules/<rule> (branch 2).
+Compliant	nsg-cge-test-range	2026-10-26T20:01:05.158474+00:00
+Compliant	nsg-cge-test-range/rules/allow-range-internet	2026-10-26T20:01:06.002220+00:00
+Compliant	nsg-cge-test-safe	2026-10-26T20:01:05.158559+00:00
+Compliant	nsg-cge-test-safe/rules/allow-https-internet	2026-10-26T20:01:06.004384+00:00
+Compliant	nsg-cge-test-safe/rules/allow-ssh-private	2026-10-26T20:04:37.278014+00:00
+NonCompliant	nsg-fafo-open	2026-10-26T19:58:42.590351+00:00

@@ -8,6 +8,7 @@ you can defend this pipeline's data lineage.
 
 import datetime
 import hashlib
+import json
 import logging
 import os
 import uuid
@@ -16,6 +17,7 @@ import azure.functions as func
 import requests
 from azure.cosmos import CosmosClient
 from azure.identity import DefaultAzureCredential
+import role_collector  # role-assignment snapshot logic (unit-tested separately)
 
 app = func.FunctionApp()
 
@@ -100,3 +102,42 @@ def collect_now(req: func.HttpRequest) -> func.HttpResponse:
         f"run {result['runId']}: {result['written']} documents at {result['collectedAt']}\n",
         status_code=200,
     )
+
+# --- Role-assignment snapshots (federal track: AC-2, AC-2(3), AC-6) ---
+# The logic lives in role_collector.py (pure functions, unit-tested with fake HTTP
+# responses). This section only wires it to a timer, an HTTP trigger, and Cosmos.
+
+
+def _collect_role_assignments() -> dict:
+    cosmos_endpoint = os.environ["COSMOS_ENDPOINT"]
+    database = os.environ["COSMOS_DATABASE"]
+    root_mg = os.environ["ROOT_MANAGEMENT_GROUP"]  # from Terraform (stage 01 output), never hardcoded
+
+    # Same managed identity as the assessment collector. No keys anywhere.
+    credential = DefaultAzureCredential()
+    session = requests.Session()
+    session.headers["Authorization"] = f"Bearer {credential.get_token(f'{ARM}/.default').token}"
+
+    docs, summary = role_collector.snapshot(session, root_mg)
+
+    container = (
+        CosmosClient(cosmos_endpoint, credential)
+        .get_database_client(database)
+        .get_container_client("roleAssignments")
+    )
+    for doc in docs:
+        container.upsert_item(doc)  # deterministic daily ID: re-runs refresh, never duplicate
+    return summary
+
+
+@app.timer_trigger(schedule="0 15 5 * * *", arg_name="timer", run_on_startup=False)
+def collect_role_assignments_nightly(timer: func.TimerRequest) -> None:
+    """Daily at 05:15 UTC, after the 05:00 assessment sweep."""
+    _collect_role_assignments()
+
+
+@app.route(route="collect-roles", auth_level=func.AuthLevel.FUNCTION)
+def collect_role_assignments_now(req: func.HttpRequest) -> func.HttpResponse:
+    """Manual trigger: run a snapshot now and return the summary as JSON."""
+    summary = _collect_role_assignments()
+    return func.HttpResponse(json.dumps(summary, indent=2) + "\n", status_code=200, mimetype="application/json")

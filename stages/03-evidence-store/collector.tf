@@ -55,6 +55,7 @@ resource "azurerm_linux_function_app" "collectors" {
     "COSMOS_ENDPOINT"                = azurerm_cosmosdb_account.evidence.endpoint
     "COSMOS_DATABASE"                = azurerm_cosmosdb_sql_database.grc.name
     "SUBSCRIPTION_ID"                = local.subscription
+    "ROOT_MANAGEMENT_GROUP"          = local.root_mg_name # where the role-assignment walk starts
     "SCM_DO_BUILD_DURING_DEPLOYMENT" = "true"
     "ENABLE_ORYX_BUILD"              = "true"
   }
@@ -79,4 +80,53 @@ resource "azurerm_cosmosdb_sql_role_assignment" "collector_cosmos_write" {
   role_definition_id  = "${azurerm_cosmosdb_account.evidence.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002"
   principal_id        = azurerm_linux_function_app.collectors.identity[0].principal_id
   scope               = azurerm_cosmosdb_account.evidence.id
+}
+
+# --- Role-assignment snapshots (federal track: AC-2, AC-2(3), AC-6) ---
+# Why: Custom 3 (Azure Policy) proved it cannot see grants made AT a management
+# group, including the most powerful ones (Owner at mg-grc, CI Contributor at
+# mg-grc). This collector walks the whole hierarchy daily and stores one record
+# per role assignment per day, so access reviews have history.
+
+locals {
+  root_mg_id   = data.terraform_remote_state.foundation.outputs.root_management_group_id
+  root_mg_name = data.terraform_remote_state.foundation.outputs.root_management_group_name
+}
+
+# Own container. Partition key = the subscription for anything at or below a
+# subscription; "mg:<name>" for management-group grants. Access reviews query
+# one subscription at a time, and MG grants form their own small partition.
+resource "azurerm_cosmosdb_sql_container" "role_assignments" {
+  name                = "roleAssignments"
+  resource_group_name = local.evidence_rg
+  account_name        = azurerm_cosmosdb_account.evidence.name
+  database_name       = azurerm_cosmosdb_sql_database.grc.name
+  partition_key_paths = ["/scopeRoot"]
+}
+
+# Least privilege: a custom role with exactly the four read actions the collector
+# uses. Built-in Reader would grant */read on every resource in the hierarchy.
+resource "azurerm_role_definition" "role_assignment_reader" {
+  name        = "GRC Role Assignment Reader"
+  scope       = local.root_mg_id
+  description = "Read-only: list management groups and role assignments/definitions for access-review snapshots. Nothing else."
+
+  permissions {
+    actions = [
+      "Microsoft.Management/managementGroups/read",             # the root group itself
+      "Microsoft.Management/managementGroups/descendants/read", # discover child groups + subscriptions (no hardcoded list)
+      "Microsoft.Authorization/roleAssignments/read",           # who has what, where
+      "Microsoft.Authorization/roleDefinitions/read",           # resolve role GUIDs to names
+    ]
+    not_actions = []
+  }
+
+  assignable_scopes = [local.root_mg_id] # can only ever be granted inside this hierarchy
+}
+
+# Granted at the root, so it inherits to every management group and subscription below.
+resource "azurerm_role_assignment" "collector_role_reader" {
+  scope              = local.root_mg_id
+  role_definition_id = azurerm_role_definition.role_assignment_reader.role_definition_resource_id
+  principal_id       = azurerm_linux_function_app.collectors.identity[0].principal_id
 }
