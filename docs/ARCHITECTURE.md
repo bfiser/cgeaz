@@ -107,7 +107,7 @@ an OIDC federation, and every identity's roles are a whitelist of its job.
 |---|---|---|---|---|
 | **Deployer** (you) | `az login` user | Owner on the subscription; Storage Blob Data Contributor on the evidence account; Cosmos Data Contributor | Apply stages, seed frameworks, prove WORM | Nothing is automated through this identity |
 | **Remediation** `id-grc-remediation-<env>` | User-assigned MI | Monitoring Contributor (sandbox MG); Storage Account Contributor (sandbox MG) *only* when `remediation_mode != audit` | Create diagnostic settings; flip `allowBlobPublicAccess` | Create, delete, or read data from anything |
-| **Collector** `func-grc-collectors-*` | System-assigned MI | Security Reader (subscription); Cosmos Built-in Data Contributor (evidence account) | Read Defender assessments; write evidence | Change posture; write reports |
+| **Collector** `func-grc-collectors-*` | System-assigned MI | Security Reader (subscription); **GRC Role Assignment Reader** (custom, `mg-grc`: 4 read actions); Cosmos Built-in Data Contributor (evidence account) | Read Defender assessments; read role assignments + definitions across the hierarchy; write evidence (`assessments`, `roleAssignments`) | Change posture; grant or revoke access; read resource contents or secrets; write reports |
 | **Reporter** `func-grc-reporting-*` | System-assigned MI | Cosmos Built-in Data Reader; Storage Blob Data Contributor (`reports`) | Read evidence; write immutable reports | Read live platform data; write evidence |
 | **CI** (your fork's gate + drift) | GitHub OIDC federation, fork-scoped | Contributor at `mg-grc`; Storage Blob Data Contributor on the state resource group (hardening to a plan-only custom role is a documented exercise) | `terraform plan`, conftest | Write RBAC; hold a secret — there is none |
 
@@ -127,6 +127,16 @@ The boundaries that matter:
   Each learner federates their own fork against their own subscription
   (`labs/06-loop/arm-your-fork.sh`); a public upstream must never hold a path to a
   subscription, because `pull_request` OIDC subjects match PRs from any fork.
+- **Why the collector has management-group-level read access (deliberate widening, AC-6).**
+  Custom policy 3 (Azure Policy) was shown not to evaluate role assignments made *at* a
+  management group, which hid the three most powerful grants in this hierarchy (Owner at
+  `mg-grc` and `mg-grc-sandbox`, CI Contributor at `mg-grc`). Seeing them requires read
+  access at `mg-grc`. Instead of built-in Reader (`*/read` on every resource), the collector
+  gets a custom role limited to four actions: `managementGroups/read`,
+  `managementGroups/descendants/read`, `roleAssignments/read`, `roleDefinitions/read`.
+  `assignableScopes` restricts the role to this hierarchy. The identity still cannot change
+  anything, grant access, or read data inside resources. It stores principal IDs only, never
+  names or emails, so the evidence store holds no PII.
 
 ## 4. The two loops
 

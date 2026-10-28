@@ -1,0 +1,6 @@
+# GRC Role Assignment Reader: action names verified against the provider catalog BEFORE creating the custom role
+# Captured: 2026-10-28T13:27:13Z. These 4 actions are the role's entire permission set.
+Microsoft.Management/managementGroups/read
+Microsoft.Management/managementGroups/descendants/read
+Microsoft.Authorization/roleAssignments/read
+Microsoft.Authorization/roleDefinitions/read
