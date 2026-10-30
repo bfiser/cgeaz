@@ -1,0 +1,13 @@
+# cge-grc-baseline NonCompliant states, captured BEFORE the policy collector existed (2026-10-30T17:57:53Z)
+# Prediction for collector + POA&M: these 11 become azurePolicy findings.
+cge-appservice-secure-transport	app-fafo-74a9c6
+cge-appservice-tls-ftps	app-fafo-74a9c6
+cge-audit-privileged-roles	0f859cd9-44e3-4851-802a-0850be88442a
+cge-audit-privileged-roles	36bcdf00-ebdf-400a-a3f7-f8c44deae961
+cge-dine-storage-diagnostics	stgrctfstate74a9c6be
+cge-nsg-no-internet-mgmt-ports	allow-mgmt-from-internet
+cge-nsg-no-internet-mgmt-ports	nsg-fafo-open
+cge-require-env-tag-rg	networkwatcherrg
+cge-require-env-tag-rg	rg-fafo-legacy
+cge-storage-min-tls12	stfafologs74a9c6
+cge-storage-min-tls12	stgrcseed19778

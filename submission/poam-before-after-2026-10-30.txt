@@ -1,0 +1,12 @@
+# POA&M before/after lifecycle fix: same findings, same day (2026-10-30)
+# OLD = 06:00 scheduled report (starter code). NEW = 16:54 manual report (lifecycle-aware), run c305e714.
+# Summary NEW: open 65, overdue 0, unassigned 20, closedRecently 0, oldestOpenDays 9 (all 6 predictions matched).
+# Same-day re-run wrote poam-2026-10-30-165433.json (previously HTTP 500 on the WORM path).
+== OLD
+POAM-20261030-001  due 2027-01-28  owner: resource-group owner tag
+POAM-20261030-002  due 2027-01-28  owner: resource-group owner tag
+POAM-20261030-003  due 2027-01-28  owner: resource-group owner tag
+== NEW
+POAM-580D6ADFF8FD  first 2026-10-21  9d open  due 2027-01-19  owner: UNASSIGNED  [backfill:poam-2026-10-21]
+POAM-A194098AD271  first 2026-10-21  9d open  due 2027-01-19  owner: UNASSIGNED  [backfill:poam-2026-10-21]
+POAM-96EA0C6CC0AA  first 2026-10-21  9d open  due 2027-01-19  owner: UNASSIGNED  [backfill:poam-2026-10-21]

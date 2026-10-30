@@ -19,12 +19,17 @@ from azure.cosmos import CosmosClient
 from azure.identity import DefaultAzureCredential
 
 import lifecycle  # finding lifecycle + ownership (unit-tested separately)
+import policy_collector  # Azure Policy findings (unit-tested separately)
 import role_collector  # role-assignment snapshot logic (unit-tested separately)
 
 app = func.FunctionApp()
 
 ARM = "https://management.azure.com"
 API_VERSION = "2021-06-01"
+
+# The initiative whose findings join the evidence store. A name, not an ID; override per
+# environment with the POLICY_INITIATIVE app setting if the initiative is ever renamed.
+DEFAULT_POLICY_INITIATIVE = "cge-grc-baseline"
 
 
 def _collect() -> dict:
@@ -98,6 +103,7 @@ def _collect() -> dict:
                 {
                     "id": doc_id,
                     "subscriptionId": subscription_id,
+                    "source": "defender",
                     "assessmentId": assessment["name"],
                     "displayName": props.get("displayName"),
                     "status": status,
@@ -118,8 +124,42 @@ def _collect() -> dict:
 
         url = payload.get("nextLink")
 
-    logging.info("collection run %s complete: %d documents", run_id, written)
-    return {"runId": run_id, "written": written, "collectedAt": collected_at}
+    # --- Azure Policy findings (cge-grc-baseline): same run, same container, same shape ---
+    # So lifecycle, owners, stable POA&M IDs, deadlines and closures all apply unchanged.
+    # One management-group-scope query covers every subscription under the root (scale by scope).
+    session = requests.Session()
+    session.headers.update(headers)
+    policy_docs = policy_collector.collect(
+        session,
+        os.environ["ROOT_MANAGEMENT_GROUP"],
+        os.environ.get("POLICY_INITIATIVE", DEFAULT_POLICY_INITIATIVE),
+    )
+    # Cross-partition: policy findings can come from any subscription under the root.
+    previous_policy = {
+        d["id"]: d
+        for d in container.query_items(
+            "SELECT c.id, c.status, c.firstUnhealthyAt, c.firstDetectedSource, c.resolvedAt "
+            "FROM c WHERE c.source = 'azurePolicy'",
+            enable_cross_partition_query=True,
+        )
+    }
+    for doc in policy_docs:
+        container.upsert_item(
+            {
+                **doc,
+                "resourceGroup": lifecycle.resource_group_of(doc["resourceId"]),
+                "owner": lifecycle.owner_for(doc["resourceId"], rg_owners),
+                **lifecycle.lifecycle(previous_policy.get(doc["id"]), doc["status"], collected_at),
+                "collectedAt": collected_at,
+                "runId": run_id,
+            }
+        )
+    written += len(policy_docs)
+
+    logging.info("collection run %s complete: %d documents (%d from Azure Policy)",
+                 run_id, written, len(policy_docs))
+    return {"runId": run_id, "written": written, "policyDocuments": len(policy_docs),
+            "collectedAt": collected_at}
 
 
 @app.timer_trigger(schedule="0 0 5 * * *", arg_name="timer", run_on_startup=False)
@@ -133,7 +173,8 @@ def collect_now(req: func.HttpRequest) -> func.HttpResponse:
     """Manual trigger for labs and demos: hit the endpoint, get the run summary."""
     result = _collect()
     return func.HttpResponse(
-        f"run {result['runId']}: {result['written']} documents at {result['collectedAt']}\n",
+        f"run {result['runId']}: {result['written']} documents "
+        f"({result['policyDocuments']} from Azure Policy) at {result['collectedAt']}\n",
         status_code=200,
     )
 

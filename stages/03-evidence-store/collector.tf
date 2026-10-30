@@ -132,3 +132,28 @@ resource "azurerm_role_assignment" "collector_role_reader" {
   role_definition_id = azurerm_role_definition.role_assignment_reader.role_definition_resource_id
   principal_id       = azurerm_linux_function_app.collectors.identity[0].principal_id
 }
+
+# --- Policy findings into the POA&M (federal track: CA-5, CA-7) ---
+# Security Reader cannot query Azure Policy states (verified 2026-10-30). One purpose per
+# role, same pattern as the role-assignment reader: exactly two actions, only in mg-grc.
+resource "azurerm_role_definition" "policy_state_reader" {
+  name        = "GRC Policy State Reader"
+  scope       = local.root_mg_id
+  description = "Read-only: query Azure Policy compliance states and read policy definitions (display name + 800-53 metadata) for the POA&M."
+
+  permissions {
+    actions = [
+      "Microsoft.PolicyInsights/policyStates/queryResults/action", # the query is a POST, hence /action; it only reads
+      "Microsoft.Authorization/policyDefinitions/read",            # display names + nist_800_53 metadata
+    ]
+    not_actions = []
+  }
+
+  assignable_scopes = [local.root_mg_id]
+}
+
+resource "azurerm_role_assignment" "collector_policy_state_reader" {
+  scope              = local.root_mg_id
+  role_definition_id = azurerm_role_definition.policy_state_reader.role_definition_resource_id
+  principal_id       = azurerm_linux_function_app.collectors.identity[0].principal_id
+}
