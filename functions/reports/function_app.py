@@ -7,6 +7,11 @@ store is a fact with a receipt.
 
 Generators here: POA&M (xlsx + json, daily) and SAR (markdown, weekly), both with
 HTTP triggers for labs and demos.
+
+POA&M lifecycle (2026-10-30): rows now come from poam.py, which uses the lifecycle
+facts the collector records (firstUnhealthyAt, resolvedAt, owner). Stable IDs,
+deadlines from first detection (so they can actually pass), days open, overdue,
+owners, and recently closed items. The reporter is still read-only on Cosmos.
 """
 
 import datetime
@@ -22,10 +27,12 @@ from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
 from openpyxl import Workbook
 
+import poam  # POA&M row logic (unit-tested separately)
+
 app = func.FunctionApp()
 
-# Severity-based SLAs: a POA&M is a plan, not a list.
-SLA_DAYS = {"High": 30, "Medium": 90, "Low": 180}
+# Closed findings stay on the POA&M for this long, so closures are visible, not silent.
+CLOSED_LOOKBACK_DAYS = 30
 
 
 def _clients():
@@ -62,53 +69,54 @@ def _unhealthy(cosmos, run_id):
     )
 
 
-def _dated_path(prefix: str, ext: str) -> str:
-    now = datetime.datetime.now(datetime.timezone.utc)
-    return f"{prefix}/{now:%Y/%m}/{prefix}-{now:%Y-%m-%d}.{ext}"
+def _closed_since(cosmos, since_iso):
+    """Findings the collector marked resolved within the lookback window."""
+    return list(
+        cosmos.query_items(
+            "SELECT * FROM c WHERE c.status != 'Unhealthy' AND IS_DEFINED(c.resolvedAt) "
+            "AND NOT IS_NULL(c.resolvedAt) AND c.resolvedAt >= @since",
+            parameters=[{"name": "@since", "value": since_iso}],
+            enable_cross_partition_query=True,
+        )
+    )
+
+
+def _paths(blobs, prefix, exts, now):
+    """One stem for all formats of a report. Daily name, or time-suffixed if today's
+    already exists (WORM: never replaced, so a same-day re-run gets its own file)."""
+    stem = poam.report_path(prefix, exts[0], now, lambda p: blobs.get_blob_client(p).exists())
+    stem = stem.rsplit(".", 1)[0]
+    return {ext: f"{stem}.{ext}" for ext in exts}
 
 
 def generate_poam() -> dict:
     cosmos, blobs = _clients()
+    now = datetime.datetime.now(datetime.timezone.utc)
+    today = now.date()
     run_id, collected_at = _latest_run(cosmos)
     findings = _unhealthy(cosmos, run_id) if run_id else []
-    today = datetime.date.today()
+    closed = _closed_since(cosmos, (now - datetime.timedelta(days=CLOSED_LOOKBACK_DAYS)).isoformat())
+    rows, summary = poam.build(findings, closed, today)
 
     wb = Workbook()
     ws = wb.active
     ws.title = "POA&M"
-    ws.append(
-        ["POA&M ID", "Weakness", "Affected Resource", "Severity",
-         "Detected (run)", "Scheduled Completion", "Owner", "Status"]
-    )
-    rows = []
-    for i, f in enumerate(sorted(findings, key=lambda x: x.get("severity") or ""), 1):
-        severity = f.get("severity") or "Medium"
-        due = today + datetime.timedelta(days=SLA_DAYS.get(severity, 90))
-        row = {
-            "poamId": f"POAM-{today:%Y%m%d}-{i:03d}",
-            "weakness": f.get("displayName"),
-            "resourceId": f.get("resourceId"),
-            "severity": severity,
-            "detectedRun": run_id,
-            "scheduledCompletion": due.isoformat(),
-            "owner": "resource-group owner tag",  # resolved during Domain 5's lab extension
-            "status": "Open",
-        }
-        rows.append(row)
-        ws.append(list(row.values()))
+    ws.append([label for _, label in poam.COLUMNS])
+    for row in rows:
+        ws.append([row[key] for key, _ in poam.COLUMNS])
 
     xlsx = io.BytesIO()
     wb.save(xlsx)
-    xlsx_path = _dated_path("poam", "xlsx")
-    json_path = _dated_path("poam", "json")
-    blobs.upload_blob(xlsx_path, xlsx.getvalue(), overwrite=False)
+    paths = _paths(blobs, "poam", ["json", "xlsx"], now)
+    blobs.upload_blob(paths["xlsx"], xlsx.getvalue(), overwrite=False)
     blobs.upload_blob(
-        json_path,
-        json.dumps({"runId": run_id, "collectedAt": collected_at, "items": rows}, indent=2),
+        paths["json"],
+        json.dumps({"runId": run_id, "collectedAt": collected_at, "generatedAt": now.isoformat(),
+                    "summary": summary, "items": rows}, indent=2),
         overwrite=False,
     )
-    logging.info("POA&M: %d items -> %s", len(rows), xlsx_path)
-    return {"items": len(rows), "runId": run_id, "xlsx": xlsx_path, "json": json_path}
+    logging.info("POA&M: %s -> %s", summary, paths["json"])
+    return {"runId": run_id, "summary": summary, "xlsx": paths["xlsx"], "json": paths["json"]}
 
 
 def generate_sar() -> dict:
@@ -137,7 +145,7 @@ def generate_sar() -> dict:
             "",
         ]
 
-    path = _dated_path("sar", "md")
+    path = _paths(blobs, "sar", ["md"], datetime.datetime.now(datetime.timezone.utc))["md"]
     blobs.upload_blob(path, "\n".join(lines), overwrite=False)
     logging.info("SAR: %d findings -> %s", len(findings), path)
     return {"findings": len(findings), "runId": run_id, "path": path}
@@ -155,7 +163,7 @@ def sar_weekly(timer: func.TimerRequest) -> None:
 
 @app.route(route="poam", auth_level=func.AuthLevel.FUNCTION)
 def poam_now(req: func.HttpRequest) -> func.HttpResponse:
-    return func.HttpResponse(json.dumps(generate_poam()) + "\n", status_code=200)
+    return func.HttpResponse(json.dumps(generate_poam(), indent=2) + "\n", status_code=200)
 
 
 @app.route(route="sar", auth_level=func.AuthLevel.FUNCTION)
