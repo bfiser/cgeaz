@@ -17,6 +17,8 @@ import azure.functions as func
 import requests
 from azure.cosmos import CosmosClient
 from azure.identity import DefaultAzureCredential
+
+import lifecycle  # finding lifecycle + ownership (unit-tested separately)
 import role_collector  # role-assignment snapshot logic (unit-tested separately)
 
 app = func.FunctionApp()
@@ -44,13 +46,38 @@ def _collect() -> dict:
         .get_container_client("assessments")
     )
 
+    headers = {"Authorization": f"Bearer {token}"}
+
+    # Owners: one call per run. Each resource group's `owner` tag (Security Reader includes
+    # resourceGroups/read). The reporter can't look this up itself: it has no access to Azure.
+    rg_resp = requests.get(
+        f"{ARM}/subscriptions/{subscription_id}/resourcegroups?api-version=2021-04-01",
+        headers=headers, timeout=60,
+    )
+    rg_resp.raise_for_status()
+    rg_owners = {
+        rg["name"].lower(): (rg.get("tags") or {}).get("owner")
+        for rg in rg_resp.json().get("value", [])
+    }
+
+    # Yesterday's lifecycle fields, in one query (not one read per finding).
+    previous = {
+        d["id"]: d
+        for d in container.query_items(
+            "SELECT c.id, c.status, c.firstUnhealthyAt, c.firstDetectedSource, c.resolvedAt "
+            "FROM c WHERE c.subscriptionId = @sub",
+            parameters=[{"name": "@sub", "value": subscription_id}],
+            partition_key=subscription_id,
+        )
+    }
+
     url = (
         f"{ARM}/subscriptions/{subscription_id}"
         f"/providers/Microsoft.Security/assessments?api-version={API_VERSION}"
     )
     written = 0
     while url:
-        resp = requests.get(url, headers={"Authorization": f"Bearer {token}"}, timeout=60)
+        resp = requests.get(url, headers=headers, timeout=60)
         resp.raise_for_status()
         payload = resp.json()
 
@@ -65,17 +92,24 @@ def _collect() -> dict:
                 f"{assessment['name']}|{resource_id}".encode()
             ).hexdigest()[:32]
 
+            status = props.get("status", {}).get("code")
+
             container.upsert_item(
                 {
                     "id": doc_id,
                     "subscriptionId": subscription_id,
                     "assessmentId": assessment["name"],
                     "displayName": props.get("displayName"),
-                    "status": props.get("status", {}).get("code"),
+                    "status": status,
                     "statusCause": props.get("status", {}).get("cause"),
                     "severity": props.get("metadata", {}).get("severity"),
                     "categories": props.get("metadata", {}).get("categories"),
                     "resourceId": resource_id,
+                    "resourceGroup": lifecycle.resource_group_of(resource_id),
+                    "owner": lifecycle.owner_for(resource_id, rg_owners),
+                    # firstUnhealthyAt / firstDetectedSource / resolvedAt: carried forward from
+                    # the stored document so aging survives the daily overwrite (CA-5).
+                    **lifecycle.lifecycle(previous.get(doc_id), status, collected_at),
                     "collectedAt": collected_at,
                     "runId": run_id,
                 }
@@ -102,6 +136,7 @@ def collect_now(req: func.HttpRequest) -> func.HttpResponse:
         f"run {result['runId']}: {result['written']} documents at {result['collectedAt']}\n",
         status_code=200,
     )
+
 
 # --- Role-assignment snapshots (federal track: AC-2, AC-2(3), AC-6) ---
 # The logic lives in role_collector.py (pure functions, unit-tested with fake HTTP
