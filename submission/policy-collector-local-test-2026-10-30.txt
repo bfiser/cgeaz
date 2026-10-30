@@ -1,0 +1,14 @@
+# policy_collector.collect() run locally as the subscription owner (read-only), 2026-10-30
+# Purpose: separate code correctness from the collector identity's RBAC propagation (deployed run returned HTTP 500).
+documents: 67 {'Unhealthy': 11, 'Healthy': 56}
+  cge-appservice-secure-transport    app-fafo-74a9c6                        SC-8, SC-8(1), SC-23
+  cge-appservice-tls-ftps            app-fafo-74a9c6                        SC-8, SC-8(1), IA-5(1)
+  cge-audit-privileged-roles         0f859cd9-44e3-4851-802a-0850be88442a   AC-6, AC-6(5), AC-2(7)
+  cge-audit-privileged-roles         36bcdf00-ebdf-400a-a3f7-f8c44deae961   AC-6, AC-6(5), AC-2(7)
+  cge-dine-storage-diagnostics       stgrctfstate74a9c6be                   
+  cge-nsg-no-internet-mgmt-ports     allow-mgmt-from-internet               SC-7, SC-7(5), AC-17
+  cge-nsg-no-internet-mgmt-ports     nsg-fafo-open                          SC-7, SC-7(5), AC-17
+  cge-require-env-tag-rg             rg-fafo-legacy                         
+  cge-require-env-tag-rg             networkwatcherrg                       
+  cge-storage-min-tls12              stgrcseed19778                         SC-8, SC-8(1)
+  cge-storage-min-tls12              stfafologs74a9c6                       SC-8, SC-8(1)
