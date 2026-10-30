@@ -143,7 +143,8 @@ resource "azurerm_role_definition" "policy_state_reader" {
 
   permissions {
     actions = [
-      "Microsoft.PolicyInsights/policyStates/queryResults/action", # the query is a POST, hence /action; it only reads
+      "Microsoft.PolicyInsights/policyStates/queryResults/read",   # what the query API actually checks (found by a 403, 2026-10-30)
+      "Microsoft.PolicyInsights/policyStates/queryResults/action", # the POST's own operation; both are read-only
       "Microsoft.Authorization/policyDefinitions/read",            # display names + nist_800_53 metadata
     ]
     not_actions = []
