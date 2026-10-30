@@ -171,7 +171,13 @@ def collect_nightly(timer: func.TimerRequest) -> None:
 @app.route(route="collect", auth_level=func.AuthLevel.FUNCTION)
 def collect_now(req: func.HttpRequest) -> func.HttpResponse:
     """Manual trigger for labs and demos: hit the endpoint, get the run summary."""
-    result = _collect()
+    try:
+        result = _collect()
+    except Exception as exc:  # surface the failure instead of a bare 500 (found 2026-10-30)
+        logging.exception("collection run failed")
+        # Type + message only. ARM/requests errors name the failing URL and status code;
+        # no keys or tokens appear in them, so this is safe to return to the caller.
+        return func.HttpResponse(f"collection failed: {type(exc).__name__}: {exc}\n", status_code=500)
     return func.HttpResponse(
         f"run {result['runId']}: {result['written']} documents "
         f"({result['policyDocuments']} from Azure Policy) at {result['collectedAt']}\n",
@@ -215,5 +221,9 @@ def collect_role_assignments_nightly(timer: func.TimerRequest) -> None:
 @app.route(route="collect-roles", auth_level=func.AuthLevel.FUNCTION)
 def collect_role_assignments_now(req: func.HttpRequest) -> func.HttpResponse:
     """Manual trigger: run a snapshot now and return the summary as JSON."""
-    summary = _collect_role_assignments()
+    try:
+        summary = _collect_role_assignments()
+    except Exception as exc:  # same as collect_now: say why, don't return a bare 500
+        logging.exception("role snapshot failed")
+        return func.HttpResponse(f"role snapshot failed: {type(exc).__name__}: {exc}\n", status_code=500)
     return func.HttpResponse(json.dumps(summary, indent=2) + "\n", status_code=200, mimetype="application/json")
