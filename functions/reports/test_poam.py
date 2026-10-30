@@ -61,10 +61,27 @@ def test_sort_and_summary():
         [doc("closed", status="Healthy", resolved="2026-10-29T00:00:00Z")], TODAY)
     assert [r["poamId"][5:] for r in rows][0] == "HI_OLD"      # overdue first
     assert rows[-1]["status"] == "Closed"                       # closed last
-    assert summary == {"open": 3, "overdue": 1, "unassigned": 1, "closedRecently": 1, "oldestOpenDays": 59}
+    assert summary == {"open": 3, "overdue": 1, "unassigned": 1, "closedRecently": 1, "oldestOpenDays": 59,
+                       "openBySource": {"defender": 3}}
 
 
 def test_report_path_daily_then_suffixed():
     now = datetime.datetime(2026, 10, 30, 16, 45, 7)
     assert poam.report_path("poam", "json", now, lambda p: False) == "poam/2026/10/poam-2026-10-30.json"
     assert poam.report_path("poam", "json", now, lambda p: True) == "poam/2026/10/poam-2026-10-30-164507.json"
+
+
+def test_policy_finding_shows_source_and_controls():
+    d = dict(doc("p"), source="azurePolicy", controls=["SC-7", "AC-17"])
+    r = poam.to_row(d, TODAY)
+    assert r["source"] == "azurePolicy" and r["controls"] == "SC-7, AC-17"
+
+
+def test_defender_finding_defaults_source_and_empty_controls():
+    r = poam.to_row(doc("d"), TODAY)
+    assert r["source"] == "defender" and r["controls"] == ""
+
+
+def test_summary_counts_open_by_source():
+    _, summary = poam.build([doc("a"), dict(doc("b"), source="azurePolicy")], [], TODAY)
+    assert summary["openBySource"] == {"azurePolicy": 1, "defender": 1}

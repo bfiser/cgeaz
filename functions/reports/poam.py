@@ -6,6 +6,7 @@ lifecycle facts (firstUnhealthyAt, resolvedAt, owner) and turns them into a plan
 """
 
 import datetime
+from collections import Counter
 
 # Severity-based SLAs: a POA&M is a plan, not a list.
 SLA_DAYS = {"High": 30, "Medium": 90, "Low": 180}
@@ -14,7 +15,9 @@ UNASSIGNED = "UNASSIGNED"
 
 COLUMNS = [
     ("poamId", "POA&M ID"),
+    ("source", "Source"),
     ("weakness", "Weakness"),
+    ("controls", "800-53 Controls"),
     ("resourceId", "Affected Resource"),
     ("severity", "Severity"),
     ("owner", "Owner"),
@@ -48,7 +51,11 @@ def to_row(doc, today):
     end = closed or today
     return {
         "poamId": poam_id(doc),
+        # Which assessment produced the finding: Microsoft's scanner or our own policy (CA-7).
+        "source": doc.get("source") or "defender",
         "weakness": doc.get("displayName"),
+        # From the policy definition's own metadata, so the mapping lives in one place (code).
+        "controls": ", ".join(doc.get("controls") or []),
         "resourceId": doc.get("resourceId"),
         "severity": severity,
         "owner": doc.get("owner") or UNASSIGNED,
@@ -76,6 +83,7 @@ def build(open_docs, closed_docs, today):
         "unassigned": sum(r["owner"] == UNASSIGNED for r in open_rows),
         "closedRecently": len(rows) - len(open_rows),
         "oldestOpenDays": max((r["daysOpen"] for r in open_rows), default=0),
+        "openBySource": dict(sorted(Counter(r["source"] for r in open_rows).items())),
     }
     return rows, summary
 
