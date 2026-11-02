@@ -1,0 +1,32 @@
+Detections-as-code go-live (PR #26) - 2026-11-02
+=================================================
+Apply 20:47Z from main: 1 imported, 4 added, 0 changed, 0 destroyed (matched plan).
+Post-apply plan -detailed-exitcode: 0 (import clean; azapi resource stable).
+
+Rules (az resource show):
+  cge-external-identity-activity  enabled  P1D    Sev3
+  cge-governance-tamper           enabled  PT15M  Sev1
+  cge-offhours-human-changes      enabled  PT1H   Sev2
+
+MG activity export (az rest, mg-grc): ds-mg-activity-to-law -> law-grc-sandbox [Administrative, Policy]
+
+Predicted vs observed:
+  governance_tamper fires on its own creation   -> FIRED Sev1 20:57Z (and 21:12Z, see duplicates)
+  offhours_human_changes silent (apply 15:47 ET, inside 07-19 business hours) -> SILENT (negative control)
+  external_identity_activity fires on known live.com guest -> FIRED Sev3 21:01Z (true positive)
+
+MG blind-spot fix proven:
+  diagnosticSettings/write, Entity=/providers/Microsoft.Management/managementGroups/mg-grc/
+  providers/Microsoft.Insights/diagnosticSettings/ds-mg-activity-to-law, ingested 20:55Z.
+  (Subscription log does not carry MG-scope ops; this arrived via the new MG export.)
+
+Duplicate-record finding:
+  20:57:53Z Success rows for the 3 rules share CorrelationId d5e511bb-... with the 20:47Z apply,
+  lowercase resource path, no matching Start -> same operation logged twice, not a second write.
+  Effect: one change = two tamper alerts (20:57, 21:12). No writes after 20:57Z -> no feedback loop.
+  Tuning decision deferred until the metadata apply shows whether policy writes duplicate too
+  (candidate: key on Start = one record per attempt, also catches failed attempts).
+
+Latency: ingestion 5-8 min; change->alert 10 min observed; worst case ~23 min (8 ingest + 15 eval).
+Callers redacted in all queries (iif(Caller contains "@", "human (redacted)", Caller)).
+Known gap: no action group; alerts visible in Azure Monitor only (notification routing = backlog).
