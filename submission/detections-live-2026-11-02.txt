@@ -30,3 +30,16 @@ Duplicate-record finding:
 Latency: ingestion 5-8 min; change->alert 10 min observed; worst case ~23 min (8 ingest + 15 eval).
 Callers redacted in all queries (iif(Caller contains "@", "human (redacted)", Caller)).
 Known gap: no action group; alerts visible in Azure Monitor only (notification routing = backlog).
+
+Follow-up: PR #27 apply (21:25:08Z, 3 policyDefinitions/write at mg-grc-sandbox)
+  Child-MG coverage PROVEN: all 3 writes arrived via the mg-grc export (Entity under mg-grc-sandbox).
+  No duplicate records for policy writes (1 Start + 1 Success each) -> duplication is specific to
+  scheduledqueryrules (Azure Monitor's own extra record). Decision: no tuning; document as benign.
+
+FINDING - ingestion-lag detection gap (governance_tamper, window PT15M / frequency PT15M):
+  storage-diagnostics  ingested 21:31:53 -> caught by 21:31:59 evaluation (6 s margin)
+  require-env-tag      ingested 21:32:51 -> MISSED (TimeGenerated 21:25 already evaluated)
+  deny-public-blob     ingested 21:35:25 -> MISSED
+  No alert at ~21:47 confirms the late records fall between windows. 2 of 3 events missed.
+  Root cause: window == frequency while ingestion lag is 5-10 min.
+  Fix (next PR): select by ingestion_time() > ago(frequency); window_duration > frequency + max lag.
