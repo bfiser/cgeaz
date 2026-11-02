@@ -2,6 +2,7 @@
 // Humans appear as email/UPN callers; workload identities appear as GUIDs (verified 2026-11-02).
 // Case-insensitive matching throughout: operation names arrive in mixed case.
 AzureActivity
+| where ingestion_time() > ago(65m)  // = frequency PT1H + 5m overlap: select by ARRIVAL so late records are not lost (finding 2026-11-02)
 | where CategoryValue =~ "Administrative" and ActivityStatusValue in~ ("Success", "Succeeded")
 | where Caller contains "@"
 | where OperationNameValue endswith "/write" or OperationNameValue endswith "/delete" or OperationNameValue contains "listkeys"

@@ -70,7 +70,7 @@ locals {
       display     = "Off-hours human changes and credential reads"
       description = "Human (email/UPN) writes, deletes, and key listing outside business hours. AU-6, AC-2(12)."
       frequency   = "PT1H"
-      window      = "PT1H"
+      window      = "PT2H"
       severity    = 2
       controls    = "AU-6 AC-2(12)"
     }
@@ -88,7 +88,7 @@ locals {
       display     = "Governance change: policy, RBAC, log routing, or alert rules"
       description = "Writes/deletes to policy, role assignments/definitions, diagnostic settings, and scheduled query rules. AU-6, CM-3, SI-4."
       frequency   = "PT15M"
-      window      = "PT15M"
+      window      = "PT1H"
       severity    = 1
       controls    = "AU-6 CM-3 SI-4"
     }

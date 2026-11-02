@@ -21,3 +21,7 @@ __pycache__/
 lab1-evidence.json
 NOTES.md
 *:Zone.Identifier
+
+# Terraform saved plans can contain secrets in plain text
+tf.plan
+*.tfplan
