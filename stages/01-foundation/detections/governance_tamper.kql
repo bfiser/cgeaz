@@ -1,0 +1,7 @@
+// AU-6, CM-3, SI-4: changes to policy, RBAC, diagnostic settings (the log pipe) and alert rules (the detectors).
+// Policy lives at management-group scope: this only sees it because the MG activity log is exported too.
+// Fires on legitimate Terraform applies as well; each hit should match a merged PR (change evidence).
+AzureActivity
+| where ActivityStatusValue in~ ("Success", "Succeeded")
+| where OperationNameValue matches regex @"(?i)^microsoft\.(authorization/(policyassignments|policydefinitions|policysetdefinitions|policyexemptions|roleassignments|roledefinitions)|insights/(diagnosticsettings|scheduledqueryrules))/(write|delete)$"
+| project TimeGenerated, Caller, OperationNameValue, _ResourceId

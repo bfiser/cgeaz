@@ -6,6 +6,10 @@ terraform {
       source  = "hashicorp/azurerm"
       version = "~> 4.0"
     }
+    azapi = {
+      source  = "azure/azapi" # management-group diagnostic settings (azurerm can't, see detections.tf)
+      version = "~> 2.0"
+    }
   }
 
   # Backend values come from labs/03-foundation/backend.hcl (written by bootstrap.sh).
@@ -20,3 +24,6 @@ provider "azurerm" {
   features {}
   # Set via ARM_SUBSCRIPTION_ID; azurerm 4.x requires explicit subscription targeting.
 }
+
+
+provider "azapi" {}
