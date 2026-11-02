@@ -1,0 +1,8 @@
+# POA&M stability proof: 1 manual + 3 unattended daily reports (2026-10-30 .. 2026-11-02)
+2026-10-30-194450: open 76  bySource {'azurePolicy': 11, 'defender': 65}  oldest 9d  overdue 0
+2026-10-31: open 76  bySource {'azurePolicy': 11, 'defender': 65}  oldest 10d  overdue 0
+2026-11-01: open 76  bySource {'azurePolicy': 11, 'defender': 65}  oldest 11d  overdue 0
+2026-11-02: open 76  bySource {'azurePolicy': 11, 'defender': 65}  oldest 12d  overdue 0
+poamIds present in all 4 reports: 76
+deadline changed: 0   daysOpen not +1/day: 0
+example POAM-00F01D1FDDB1: daysOpen [8, 9, 10, 11], due 2027-01-20

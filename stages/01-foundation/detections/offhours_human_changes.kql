@@ -1,0 +1,10 @@
+// AU-6, AC-2(12): changes and credential reads by HUMANS outside business hours.
+// Humans appear as email/UPN callers; workload identities appear as GUIDs (verified 2026-11-02).
+// Case-insensitive matching throughout: operation names arrive in mixed case.
+AzureActivity
+| where CategoryValue =~ "Administrative" and ActivityStatusValue in~ ("Success", "Succeeded")
+| where Caller contains "@"
+| where OperationNameValue endswith "/write" or OperationNameValue endswith "/delete" or OperationNameValue contains "listkeys"
+| extend LocalTime = datetime_utc_to_local(TimeGenerated, "${timezone}")
+| where dayofweek(LocalTime) in (0d, 6d) or hourofday(LocalTime) < ${start_hour} or hourofday(LocalTime) >= ${end_hour}
+| project TimeGenerated, LocalTime, Caller, OperationNameValue, ResourceGroup, _ResourceId
