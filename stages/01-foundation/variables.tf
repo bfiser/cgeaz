@@ -94,3 +94,30 @@ variable "nsg_mgmt_ports_policy_effect" {
     error_message = "nsg_mgmt_ports_policy_effect must be Audit, Deny, or Disabled."
   }
 }
+variable "business_timezone" {
+  description = "IANA timezone defining business hours for the off-hours detection."
+  type        = string
+  default     = "America/New_York"
+}
+
+variable "business_hours_start" {
+  description = "Local hour (0-23) business hours start; activity before this is off-hours."
+  type        = number
+  default     = 7
+
+  validation {
+    condition     = var.business_hours_start >= 0 && var.business_hours_start <= 23
+    error_message = "business_hours_start must be 0-23."
+  }
+}
+
+variable "business_hours_end" {
+  description = "Local hour (1-24) business hours end; activity at or after this is off-hours."
+  type        = number
+  default     = 19
+
+  validation {
+    condition     = var.business_hours_end > var.business_hours_start && var.business_hours_end <= 24
+    error_message = "business_hours_end must be after business_hours_start and at most 24."
+  }
+}

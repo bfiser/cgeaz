@@ -1,0 +1,7 @@
+// AC-2, AC-2(12): activity by identities authenticated by ANOTHER identity provider (guests, B2B).
+// Keyed on the idp claim, NOT "#EXT#": guest activity appears as a plain email with idp=live.com
+// (verified 2026-11-02). Workload identities carry this tenant's issuer; home-tenant users carry no idp.
+AzureActivity
+| extend Idp = tostring(todynamic(Claims)["http://schemas.microsoft.com/identity/claims/identityprovider"])
+| where isnotempty(Idp) and Idp != "${home_issuer}"
+| summarize Events = count(), Operations = dcount(OperationNameValue), Sample = make_set(OperationNameValue, 10), LastSeen = max(TimeGenerated) by Caller, Idp

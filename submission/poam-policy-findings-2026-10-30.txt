@@ -1,0 +1,28 @@
+# POA&M increment 3: Azure Policy findings in the POA&M (2026-10-30)
+# Collector run 6889a653: 223 docs (156 Defender + 67 policy states). Report poam-2026-10-30-194450.
+# Predictions matched: open 76 (defender 65 + azurePolicy 11), unassigned 27, oldest 9d.
+# Path to green: 403 (role had queryResults/action; API checks policyStates/queryResults/read) ->
+#   error surfacing in collect_now -> full operation list -> role fixed -> success.
+{
+  "open": 76,
+  "overdue": 0,
+  "unassigned": 27,
+  "closedRecently": 0,
+  "oldestOpenDays": 9,
+  "openBySource": {
+    "azurePolicy": 11,
+    "defender": 65
+  }
+}
+== Policy findings (source, weakness, resource, 800-53 controls, owner)
+  App Service apps must use TLS 1.2+ (app and SCM si  app-fafo-74a9c6  [SC-8, SC-8(1), IA-5(1)]  grc-team@fafo.example
+  App Service apps must be HTTPS-only  app-fafo-74a9c6  [SC-8, SC-8(1), SC-23]  grc-team@fafo.example
+  Storage accounts must route diagnostics to the GRC  stgrctfstate74a9c6be  []  UNASSIGNED
+  Storage accounts must require TLS 1.2 or higher  stgrcseed19778  [SC-8, SC-8(1)]  grc-team@fafo.example
+  Storage accounts must require TLS 1.2 or higher  stfafologs74a9c6  [SC-8, SC-8(1)]  UNASSIGNED
+  Resource groups must carry an env tag  rg-fafo-legacy  []  UNASSIGNED
+  Resource groups must carry an env tag  networkwatcherrg  []  UNASSIGNED
+  NSG rules must not allow SSH (22) or RDP (3389) fr  allow-mgmt-from-internet  [SC-7, SC-7(5), AC-17]  UNASSIGNED
+  NSG rules must not allow SSH (22) or RDP (3389) fr  nsg-fafo-open  [SC-7, SC-7(5), AC-17]  UNASSIGNED
+  Privileged role assignments (Owner, Contributor, U  0f859cd9-44e3-4851-802a-0850be88442a  [AC-6, AC-6(5), AC-2(7)]  grc-team@fafo.example
+  Privileged role assignments (Owner, Contributor, U  36bcdf00-ebdf-400a-a3f7-f8c44deae961  [AC-6, AC-6(5), AC-2(7)]  UNASSIGNED
