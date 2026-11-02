@@ -1,0 +1,6 @@
+# Compensating control: manual drift check while GitHub Actions is disabled (2026-11-02T19:18:19Z)
+01-foundation exit code: 0
+03-evidence-store exit code: 0
+04-reporting exit code: 0
+06-enforcement exit code: 0
+2026-11-02T20:08Z  Compensating control retired: automated drift restored, run 41515818893 green (all 4 stages exit 0).

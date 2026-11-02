@@ -11,6 +11,13 @@ resource "azurerm_policy_definition" "require_env_tag" {
   mode                = "All"
   management_group_id = azurerm_management_group.sandbox.id
 
+  # Framework mapping on the definition itself, so it reaches the POA&M's Controls column.
+  metadata = jsonencode({
+    category    = "Tags"
+    nist_800_53 = ["CM-8"]     # system component inventory: tags categorize what we own
+    csf_2_0     = ["ID.AM-02"] # inventories of software, services, and systems are maintained
+  })
+
   parameters = jsonencode({
     effect = {
       type          = "String"
@@ -38,6 +45,12 @@ resource "azurerm_policy_definition" "deny_public_blob" {
   policy_type         = "Custom"
   mode                = "Indexed"
   management_group_id = azurerm_management_group.sandbox.id
+
+  metadata = jsonencode({
+    category    = "Storage"
+    nist_800_53 = ["AC-3", "SC-7"]         # access enforcement; boundary protection (no anonymous internet reads)
+    csf_2_0     = ["PR.DS-01", "PR.AA-05"] # data-at-rest protection; access permissions
+  })
 
   parameters = jsonencode({
     effect = {
@@ -67,6 +80,12 @@ resource "azurerm_policy_definition" "storage_diagnostics" {
   policy_type         = "Custom"
   mode                = "Indexed"
   management_group_id = azurerm_management_group.sandbox.id
+
+  metadata = jsonencode({
+    category    = "Monitoring"
+    nist_800_53 = ["AU-2", "AU-12"] # event logging; audit record generation
+    csf_2_0     = ["PR.PS-04"]      # log records are generated and made available for continuous monitoring
+  })
 
   parameters = jsonencode({
     workspaceId = {
