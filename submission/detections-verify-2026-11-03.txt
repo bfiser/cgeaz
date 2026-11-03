@@ -50,3 +50,10 @@ Detections verification - 2026-11-03 (callers redacted; IDs only)
    azapi migration applied 15:34Z (1 import, 1 change). Read-back 15:34Z: still True; ~15:45Z:
    Administrative False, Policy False. Post-apply plan exit 0 after propagation.
    Lesson 2: read back the state AFTER propagation; an immediate read can still be stale.
+
+6) Double-export fix VERIFIED (same operation before/after)
+   listKeys on stgrcseed19778, 2026-11-02 21:54 ET (before): 2x Start + 2x Success (both exports).
+   listKeys on stgrcseed19778, 2026-11-03 16:19:11Z (after):  1x Start + 1x Success, ingested 16:25:15Z.
+   Copies = 1 per status AND rows > 0 -> no duplicates and subscription admin logging still flows
+   (via the MG export). Zero rows earlier (15:50-16:15Z) was no activity, not proof; a test event
+   was generated before concluding. PASS.
