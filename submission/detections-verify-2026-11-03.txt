@@ -35,3 +35,13 @@ Detections verification - 2026-11-03 (callers redacted; IDs only)
    Policy writes appeared once because they are MG-scope (only the MG export carries them).
    Today's duplicates are the double export (3). The 10-minute-late records seen 2026-11-02 20:57Z
    remain a separate pattern; our earlier explanation of them was too narrow.
+
+5) FINDING - "apply complete" did not change Azure (PR #29, applied 15:22Z)
+   PR #29 removed the Administrative + Policy enabled_log blocks (azurerm). Apply reported
+   "1 changed"; post-apply plan -detailed-exitcode = 2 (same diff again).
+   Read-back (az rest GET, 2021-05-01-preview): Administrative True, Policy True -> change never took.
+   Cause: azurerm sends only enabled categories for this subscription setting; Azure keeps the
+   unmentioned ones. Double export continued.
+   Fix (PR): migrate to azapi_resource with every category and an explicit enabled flag
+   (removed{destroy=false} + import; no deletion, no portal). Plan: 1 import, 0 add, 1 change, 0 destroy.
+   Lesson: "apply succeeded" is not evidence of the change; read back the actual state.
