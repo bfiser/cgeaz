@@ -11,24 +11,52 @@
 # by hand (scripts/render_kql.py) is exactly the query each alert rule runs.
 
 # --- 1. Subscription Activity Log -> GRC workspace (adopted, not recreated) ---
+# Hand-made in Lab 2; imported 2026-11-02 (azurerm); moved to azapi 2026-11-03.
+# Why azapi: removing enabled_log blocks from azurerm_monitor_diagnostic_setting did NOT disable
+# those categories on this subscription setting (apply "succeeded", Azure still returned
+# Administrative + Policy enabled=true, post-apply plan exit 2). azapi sends every category with an
+# explicit enabled flag, so the code states exactly what Azure stores.
+#
+# Administrative + Policy are OFF here because the MG export (section 2) carries every subscription
+# under mg-grc; exporting them here too stored each subscription event twice (dup ratio 1.0 before
+# the MG export, 2.0 after; evidence 2026-11-03). One source per category.
+# Residual risk: if the MG export is removed, subscription admin logs stop; it is Terraform-managed,
+# so the daily drift run detects that (defense in depth).
 
-import {
-  to = azurerm_monitor_diagnostic_setting.subscription_activity
-  id = "${data.azurerm_subscription.current.id}|ds-activity-to-law"
+removed {
+  from = azurerm_monitor_diagnostic_setting.subscription_activity
+  lifecycle {
+    destroy = false # forget the azurerm resource only; the setting stays in Azure
+  }
 }
 
-resource "azurerm_monitor_diagnostic_setting" "subscription_activity" {
-  name                       = "ds-activity-to-law"
-  target_resource_id         = data.azurerm_subscription.current.id
-  log_analytics_workspace_id = azurerm_log_analytics_workspace.grc.id
+import {
+  to = azapi_resource.subscription_activity_log
+  id = "${data.azurerm_subscription.current.id}/providers/Microsoft.Insights/diagnosticSettings/ds-activity-to-law"
+}
 
-  # Imported unchanged (2026-11-02), then narrowed (2026-11-03): Administrative + Policy now come ONLY
-  # from the MG export below, which also carries every subscription under mg-grc. Exporting them here
-  # too stored each subscription event twice (dup ratio 1.0 before the MG export, 2.0 after).
-  # One source per category. Residual risk: if the MG export is removed, subscription admin logs stop;
-  # it is Terraform-managed, so the daily drift run detects that (defense in depth).
-  enabled_log { category = "Security" }
-  enabled_log { category = "Alert" }
+resource "azapi_resource" "subscription_activity_log" {
+  type                      = "Microsoft.Insights/diagnosticSettings@2021-05-01-preview"
+  name                      = "ds-activity-to-law"
+  parent_id                 = data.azurerm_subscription.current.id
+  schema_validation_enabled = false
+
+  # Every category explicit, in the order Azure returns them (nothing implicitly "kept").
+  body = {
+    properties = {
+      workspaceId = azurerm_log_analytics_workspace.grc.id
+      logs = [
+        { category = "Administrative", enabled = false }, # via MG export
+        { category = "Security", enabled = true },
+        { category = "Policy", enabled = false }, # via MG export
+        { category = "Alert", enabled = true },
+        { category = "ServiceHealth", enabled = false },
+        { category = "Recommendation", enabled = false },
+        { category = "Autoscale", enabled = false },
+        { category = "ResourceHealth", enabled = false },
+      ]
+    }
+  }
 }
 
 # --- 2. Management-group Activity Log -> same workspace ---
