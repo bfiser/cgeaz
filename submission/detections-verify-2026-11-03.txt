@@ -1,0 +1,37 @@
+Detections verification - 2026-11-03 (callers redacted; IDs only)
+=================================================================
+1) PR #28 ingestion-lag fix (applied 2026-11-02 22:02Z, post-apply plan exit 0)
+   Prediction: every scheduledqueryrules record is covered by a tamper evaluation; ~2 tamper alerts.
+   Records written 22:01:47-22:01:58Z, ingested 22:06:30-22:08:04Z (8 rows).
+   Tamper alerts: 22:11:59Z (ingest window 21:51:59->) covers all 8;
+                  22:27:00Z (window 22:07:00->) re-covers the 22:08:04 rows (5-min overlap, by design).
+   Result: 8/8 covered, 0 missed (vs 2 of 3 missed before the fix). PASS.
+   Negative control: no off-hours alert for the 22:02Z apply (17:02 ET, business hours). PASS.
+
+2) Off-hours credential read (listKeys on stgrcseed19778, keys never printed - count only)
+   Prediction: cge-offhours-human-changes fires Sev2; cge-governance-tamper does NOT fire.
+   Event 2026-11-03T02:54:41Z (21:54 ET), ingested 02:59:35Z.
+   Off-hours alert 03:01:33Z (Sev2), ~7 min after the event. PASS.
+   Second off-hours alert 03:56:35Z: evaluations ran 55 min apart, 65-min look-back re-covered it (overlap).
+   No tamper alert (listKeys is not a governance write). PASS.
+   Design note: the failed attempt at 02:54:04Z (wrong RG, ResourceNotFound) WAS logged (Start + Failure)
+   but rules match successes only. A failed credential read due to missing permission is arguably
+   more suspicious than a success -> backlog: consider alerting on AuthorizationFailed attempts.
+
+3) FINDING - double export after the MG activity log (found while checking 1 and 2)
+   Every subscription event appeared twice (identical rows, ingested seconds apart).
+   Dup ratio = rows / unique(CorrelationId, OperationId, status, TimeGenerated):
+     before MG export (to 20:48Z 11-02): 1.0 (118/118)
+     after, by scope: subscription 1.58, management group 1.0 (6/6), unknown 1.0 (8/8)
+     subscription by hour: 20:00 1.01 | 21:00 1.5 (MG export ramping up) | 22:00 2.0 | 02:00 2.0
+   Cause: the mg-grc export carries every subscription beneath it, and the subscription setting
+   exported the same categories. Effect: doubled ingestion and doubled counts (alerts still correct).
+   Fix (PR): subscription setting narrowed to Security + Alert; Administrative + Policy only via MG.
+   Residual risk: losing the MG export stops subscription admin logs; it is Terraform-managed,
+   so the daily drift run detects removal (defense in depth).
+
+4) CORRECTION to detections-live-2026-11-02.txt
+   We concluded "duplication is specific to scheduledqueryrules; policy writes don't duplicate."
+   Policy writes appeared once because they are MG-scope (only the MG export carries them).
+   Today's duplicates are the double export (3). The 10-minute-late records seen 2026-11-02 20:57Z
+   remain a separate pattern; our earlier explanation of them was too narrow.
