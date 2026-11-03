@@ -22,10 +22,12 @@ resource "azurerm_monitor_diagnostic_setting" "subscription_activity" {
   target_resource_id         = data.azurerm_subscription.current.id
   log_analytics_workspace_id = azurerm_log_analytics_workspace.grc.id
 
-  # Matches the hand-made setting exactly, so the import changes nothing.
-  enabled_log { category = "Administrative" }
+  # Imported unchanged (2026-11-02), then narrowed (2026-11-03): Administrative + Policy now come ONLY
+  # from the MG export below, which also carries every subscription under mg-grc. Exporting them here
+  # too stored each subscription event twice (dup ratio 1.0 before the MG export, 2.0 after).
+  # One source per category. Residual risk: if the MG export is removed, subscription admin logs stop;
+  # it is Terraform-managed, so the daily drift run detects that (defense in depth).
   enabled_log { category = "Security" }
-  enabled_log { category = "Policy" }
   enabled_log { category = "Alert" }
 }
 
