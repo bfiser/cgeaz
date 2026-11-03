@@ -40,8 +40,13 @@ Detections verification - 2026-11-03 (callers redacted; IDs only)
    PR #29 removed the Administrative + Policy enabled_log blocks (azurerm). Apply reported
    "1 changed"; post-apply plan -detailed-exitcode = 2 (same diff again).
    Read-back (az rest GET, 2021-05-01-preview): Administrative True, Policy True -> change never took.
-   Cause: azurerm sends only enabled categories for this subscription setting; Azure keeps the
-   unmentioned ones. Double export continued.
+   Cause UNCERTAIN: either azurerm omits unmentioned categories instead of disabling them, or the
+   change propagated slower than our checks (Azure still showed True ~8 min after the apply).
+   The azapi apply (15:34Z) also read back True immediately, then False ~10 min later -> long
+   propagation is confirmed for azapi; we can no longer tell which applied to PR #29.
    Fix (PR): migrate to azapi_resource with every category and an explicit enabled flag
    (removed{destroy=false} + import; no deletion, no portal). Plan: 1 import, 0 add, 1 change, 0 destroy.
    Lesson: "apply succeeded" is not evidence of the change; read back the actual state.
+   azapi migration applied 15:34Z (1 import, 1 change). Read-back 15:34Z: still True; ~15:45Z:
+   Administrative False, Policy False. Post-apply plan exit 0 after propagation.
+   Lesson 2: read back the state AFTER propagation; an immediate read can still be stale.
