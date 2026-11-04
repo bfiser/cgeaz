@@ -31,6 +31,6 @@ If you want to overwrite the existing one, please add --overwrite in your comman
 Result: both requests REFUSED (BlobImmutableDueToPolicy); blob unchanged (lastModified = created, same size).
 Note: the CLI line "please add --overwrite" is a generic client hint; the service error is the ErrorCode above.
 Design note: the policy is time-based (90 days) and UNLOCKED. Data-plane delete/overwrite is blocked for every
-identity, but an admin could still shorten or remove an unlocked policy via ARM (that write would trip
-cge-governance-tamper? No - it is Microsoft.Storage, not in the tamper regex; see roadmap). Production: LOCK the
-policy (irreversible, SEC 17a-4 style). Kept unlocked here so the sandbox can be torn down after grading.
+identity, but an admin could still shorten or remove an unlocked policy via ARM. Production: LOCK the policy
+(irreversible, SEC 17a-4 style). Kept unlocked so the sandbox can be torn down after grading.
+Gap found: an immutabilityPolicies write is not covered by cge-governance-tamper yet -> added to the rule (planned 2026-11-06).
