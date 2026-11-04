@@ -1,0 +1,36 @@
+WORM failed-delete proof (rubric Dim 3) - 2026-11-04T17:38:33Z
+Account stgrcevidmjdbk1, container reports. Immutability policy:
+{
+  "retentionDays": 90,
+  "state": "Unlocked"
+}
+Target: reports/poam/2026/11/poam-2026-11-04.xlsx (newest POA&M, inside retention)
+Caller holds blob data write access via RBAC (stage 03 deployer_blob_data), so the requests are AUTHORIZED;
+immutability must still refuse them.
+
+-- Attempt 1: DELETE
+ERROR: This operation is not permitted as the blob is immutable due to a policy.
+RequestId:8d50e3c2-701e-0002-4483-6c8029000000
+Time:2026-11-04T17:38:34.5186487Z
+ErrorCode:BlobImmutableDueToPolicy
+
+-- Attempt 2: OVERWRITE (upload --overwrite)
+RequestId:1ec67ca3-a01e-004c-6e83-6caea1000000
+Time:2026-11-04T17:38:35.3411978Z
+ErrorCode:BlobImmutableDueToPolicy
+If you want to overwrite the existing one, please add --overwrite in your command.
+
+-- After both attempts, the blob is unchanged:
+{
+  "created": "2026-11-04T06:00:01+00:00",
+  "lastModified": "2026-11-04T06:00:01+00:00",
+  "name": "poam/2026/11/poam-2026-11-04.xlsx",
+  "sizeBytes": 12055
+}
+
+Result: both requests REFUSED (BlobImmutableDueToPolicy); blob unchanged (lastModified = created, same size).
+Note: the CLI line "please add --overwrite" is a generic client hint; the service error is the ErrorCode above.
+Design note: the policy is time-based (90 days) and UNLOCKED. Data-plane delete/overwrite is blocked for every
+identity, but an admin could still shorten or remove an unlocked policy via ARM (that write would trip
+cge-governance-tamper? No - it is Microsoft.Storage, not in the tamper regex; see roadmap). Production: LOCK the
+policy (irreversible, SEC 17a-4 style). Kept unlocked here so the sandbox can be torn down after grading.
