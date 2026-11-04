@@ -1,0 +1,29 @@
+Tier 0 (rubric Dim 1) - 2026-11-04
+tflint 0.65.0 + ruleset azurerm 0.33.0 (pinned; release checksum verified)
+checkov 3.4.3 (isolated venv; rule definitions read from the installed package)
+
+tflint: clean on all 5 stages (was 10 x azurerm_resources_missing_prevent_destroy)
+checkov before: 33 failed / 17 rules, AND 3 files unparsed (the policy files were never scanned)
+checkov after:  Passed checks: 55, Failed checks: 0, Skipped checks: 31
+
+FIXED
+- prevent_destroy on 8 evidence resources (Cosmos account/db/4 containers, evidence storage, reports container)
+- Cosmos access_key_metadata_writes_enabled = false (CKV_AZURE_132)
+- runtime storage: shared_access_key_enabled stated explicitly + sas_policy (CKV2_AZURE_41)
+- NEW evidence access log: diagnostic setting on blobServices/default (StorageRead/Write/Delete)
+- checkov could not parse policies.tf, policies-federal.tf, 06/main.tf (python-hcl2 treats "if" as a
+  keyword inside jsonencode). Quoted the key -> identical JSON (plan exit 0 on 01 and 06); now scanned.
+- unit tests use a fake subscription ID instead of the real one
+
+FINDING
+- cge-dine-storage-diagnostics reports Compliant but deploys an ACCOUNT-level setting with METRICS only
+  (Transaction, Capacity). Storage logs exist only on sub-services, so evidence reads/writes/deletes were
+  never logged. Compliant != control objective met. Roadmap: extend the policy to blobServices.
+
+ACCEPTED (reason inline at each resource as #checkov:skip=ID:reason)
+- Y1 Consumption: no VNet/private endpoints, public endpoints, no zone redundancy/instance minimum
+- CMK (Microsoft-managed keys meet SC-28 here), replication (sandbox cost), runtime shared key
+- soft delete on evidence storage (WORM is stronger), runtime artifacts (rebuildable)
+- CKV_AZURE_140: false positive (local_authentication_enabled = false is set; rule reads deprecated attr)
+- CKV2_AZURE_21: rule requires legacy azurerm_log_analytics_storage_insights; covered by the
+  diagnostic setting above (current mechanism)

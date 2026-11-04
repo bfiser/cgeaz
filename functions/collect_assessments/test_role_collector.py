@@ -5,7 +5,7 @@ import datetime
 import role_collector as rc
 
 MG_ROOT = "mg-grc"
-SUB = "74a9c6be-f18a-4f85-90de-cb55aaa149b1"
+SUB = "00000000-0000-0000-0000-000000000001"
 OWNER = "8e3af657-a8ff-443c-a75c-2fe8c4bcb635"
 CONTRIB = "b24988ac-6180-42a0-ab88-20f7382dd24c"
 READER = "acdd72a7-3385-48ef-bd42-f606fba81ae7"

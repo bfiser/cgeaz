@@ -27,7 +27,7 @@ resource "azurerm_policy_definition" "require_env_tag" {
   })
 
   policy_rule = jsonencode({
-    if = {
+    "if" = {
       allOf = [
         { field = "type", equals = "Microsoft.Resources/subscriptions/resourceGroups" },
         { field = "tags['env']", exists = "false" }
@@ -61,7 +61,7 @@ resource "azurerm_policy_definition" "deny_public_blob" {
   })
 
   policy_rule = jsonencode({
-    if = {
+    "if" = {
       allOf = [
         { field = "type", equals = "Microsoft.Storage/storageAccounts" },
         { field = "Microsoft.Storage/storageAccounts/allowBlobPublicAccess", equals = "true" }
@@ -95,7 +95,7 @@ resource "azurerm_policy_definition" "storage_diagnostics" {
   })
 
   policy_rule = jsonencode({
-    if = {
+    "if" = {
       field  = "type"
       equals = "Microsoft.Storage/storageAccounts"
     }

@@ -2,7 +2,7 @@
 
 import policy_collector as pc
 
-SUB = "74a9c6be-f18a-4f85-90de-cb55aaa149b1"
+SUB = "00000000-0000-0000-0000-000000000001"
 NSG_DEF = "/providers/Microsoft.Management/managementGroups/mg-grc-sandbox/providers/Microsoft.Authorization/policyDefinitions/cge-nsg-no-internet-mgmt-ports"
 TAG_DEF = "/providers/Microsoft.Management/managementGroups/mg-grc-sandbox/providers/Microsoft.Authorization/policyDefinitions/cge-require-env-tag-rg"
 
