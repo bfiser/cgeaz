@@ -21,7 +21,20 @@ data "azurerm_storage_account" "evidence" {
   resource_group_name = local.evidence_rg
 }
 
+# tflint-ignore: azurerm_resources_missing_prevent_destroy # Functions runtime artifacts only (no evidence); rebuildable from the repo
 resource "azurerm_storage_account" "func_internal" {
+  shared_access_key_enabled = true # explicit: Consumption runtime needs keys (CKV2_AZURE_41 requires it stated + sas_policy)
+  #checkov:skip=CKV_AZURE_59:Consumption (Y1) Functions cannot use VNet/private endpoints; access is Entra RBAC only (roadmap: Premium + private endpoints)
+  #checkov:skip=CKV2_AZURE_33:Consumption (Y1) Functions cannot use VNet/private endpoints; access is Entra RBAC only (roadmap: Premium + private endpoints)
+  #checkov:skip=CKV2_AZURE_40:Consumption runtime (AzureWebJobsStorage, content share) requires shared key; evidence account has keys disabled
+  #checkov:skip=CKV2_AZURE_1:Functions runtime artifacts only (no evidence); rebuildable from the repo
+  #checkov:skip=CKV2_AZURE_38:Functions runtime artifacts only (no evidence); rebuildable from the repo
+  #checkov:skip=CKV_AZURE_206:Functions runtime artifacts only (no evidence); rebuildable from the repo
+  #checkov:skip=CKV_AZURE_33:runtime-internal queues only; Functions runtime artifacts only (no evidence); rebuildable from the repo
+  sas_policy { # CKV2_AZURE_41: flag SAS tokens valid > 1 day (Log only, never blocks the runtime)
+    expiration_period = "01.00:00:00"
+    expiration_action = "Log"
+  }
   name                            = "stgrcrpt${random_string.suffix.result}"
   resource_group_name             = local.evidence_rg
   location                        = var.functions_location
@@ -33,6 +46,8 @@ resource "azurerm_storage_account" "func_internal" {
 }
 
 resource "azurerm_service_plan" "reporting" {
+  #checkov:skip=CKV_AZURE_212:Consumption (Y1) plan has no instance minimum
+  #checkov:skip=CKV_AZURE_225:Consumption (Y1) plan has no zone redundancy
   name                = "asp-grc-reporting-${var.environment}"
   resource_group_name = local.evidence_rg
   location            = var.functions_location
@@ -42,6 +57,7 @@ resource "azurerm_service_plan" "reporting" {
 }
 
 resource "azurerm_linux_function_app" "reporting" {
+  #checkov:skip=CKV_AZURE_221:Y1 needs a public endpoint (no VNet); HTTP triggers are function-key protected
   name                       = "func-grc-reporting-${random_string.suffix.result}"
   resource_group_name        = local.evidence_rg
   location                   = var.functions_location

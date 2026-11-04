@@ -49,7 +49,7 @@ resource "azurerm_policy_definition" "storage_min_tls" {
   })
 
   policy_rule = jsonencode({
-    if = {
+    "if" = {
       allOf = [ # ALL of these must be true for the policy to fire
         { field = "type", equals = "Microsoft.Storage/storageAccounts" },
         {
@@ -118,7 +118,7 @@ resource "azurerm_policy_definition" "appservice_transport" {
   })
 
   policy_rule = jsonencode({
-    if = {
+    "if" = {
       allOf = [
         { field = "type", equals = "Microsoft.Web/sites" }, # web apps AND Function apps
         # Plain HTTP still served. notEquals true: a missing value counts as weak.
@@ -152,7 +152,7 @@ resource "azurerm_policy_definition" "appservice_tls_ftps" {
   })
 
   policy_rule = jsonencode({
-    if = { field = "type", equals = "Microsoft.Web/sites" } # every app...
+    "if" = { field = "type", equals = "Microsoft.Web/sites" } # every app...
     then = {
       effect = "[parameters('effect')]"
       details = {
@@ -229,7 +229,7 @@ resource "azurerm_policy_definition" "privileged_role_assignments" {
   })
 
   policy_rule = jsonencode({
-    if = {
+    "if" = {
       allOf = [
         { field = "type", equals = "Microsoft.Authorization/roleAssignments" },
         {
@@ -314,7 +314,7 @@ resource "azurerm_policy_definition" "nsg_mgmt_ports" {
   })
 
   policy_rule = jsonencode({
-    if = {
+    "if" = {
       anyOf = [
         # Branch 1: rules inline in the NSG. Count the rules that are open; more than 0 = non-compliant.
         {

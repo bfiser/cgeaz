@@ -16,6 +16,14 @@ resource "random_string" "suffix" {
 # --- Cosmos DB: the evidence database we OWN. Serverless; pennies at lab scale. ---
 
 resource "azurerm_cosmosdb_account" "evidence" {
+  #checkov:skip=CKV_AZURE_140:false positive: local_authentication_enabled = false is set; check reads the deprecated attribute
+  #checkov:skip=CKV_AZURE_100:Microsoft-managed keys meet SC-28 here; CMK needs Key Vault + rotation (roadmap)
+  #checkov:skip=CKV_AZURE_101:Consumption (Y1) Functions cannot use VNet/private endpoints; access is Entra RBAC only (roadmap: Premium + private endpoints)
+  #checkov:skip=CKV_AZURE_99:Consumption (Y1) Functions cannot use VNet/private endpoints; access is Entra RBAC only (roadmap: Premium + private endpoints)
+  access_key_metadata_writes_enabled = false # CKV_AZURE_132: changes via ARM/RBAC only, never via keys
+  lifecycle {
+    prevent_destroy = true # evidence must not disappear via terraform destroy (AU-9); remove only by reviewed PR
+  }
   name                = "cosmos-grc-evidence-${random_string.suffix.result}"
   location            = var.location
   resource_group_name = local.evidence_rg
@@ -44,6 +52,9 @@ resource "azurerm_cosmosdb_account" "evidence" {
 }
 
 resource "azurerm_cosmosdb_sql_database" "grc" {
+  lifecycle {
+    prevent_destroy = true # evidence must not disappear via terraform destroy (AU-9); remove only by reviewed PR
+  }
   name                = "grc"
   resource_group_name = local.evidence_rg
   account_name        = azurerm_cosmosdb_account.evidence.name
@@ -51,6 +62,9 @@ resource "azurerm_cosmosdb_sql_database" "grc" {
 
 # assessments: one document per finding per run. Partitioned by subscription+date query pattern.
 resource "azurerm_cosmosdb_sql_container" "assessments" {
+  lifecycle {
+    prevent_destroy = true # evidence must not disappear via terraform destroy (AU-9); remove only by reviewed PR
+  }
   name                = "assessments"
   resource_group_name = local.evidence_rg
   account_name        = azurerm_cosmosdb_account.evidence.name
@@ -60,6 +74,9 @@ resource "azurerm_cosmosdb_sql_container" "assessments" {
 
 # frameworks: CSF 2.0 / 800-53 catalogs as records we own.
 resource "azurerm_cosmosdb_sql_container" "frameworks" {
+  lifecycle {
+    prevent_destroy = true # evidence must not disappear via terraform destroy (AU-9); remove only by reviewed PR
+  }
   name                = "frameworks"
   resource_group_name = local.evidence_rg
   account_name        = azurerm_cosmosdb_account.evidence.name
@@ -69,6 +86,9 @@ resource "azurerm_cosmosdb_sql_container" "frameworks" {
 
 # mappings: the crosswalk — which assessment satisfies which control in which framework.
 resource "azurerm_cosmosdb_sql_container" "mappings" {
+  lifecycle {
+    prevent_destroy = true # evidence must not disappear via terraform destroy (AU-9); remove only by reviewed PR
+  }
   name                = "mappings"
   resource_group_name = local.evidence_rg
   account_name        = azurerm_cosmosdb_account.evidence.name
@@ -79,6 +99,15 @@ resource "azurerm_cosmosdb_sql_container" "mappings" {
 # --- Evidence artifact storage: WORM reports container, zero shared keys. ---
 
 resource "azurerm_storage_account" "evidence" {
+  #checkov:skip=CKV_AZURE_59:Consumption (Y1) Functions cannot use VNet/private endpoints; access is Entra RBAC only (roadmap: Premium + private endpoints)
+  #checkov:skip=CKV2_AZURE_33:Consumption (Y1) Functions cannot use VNet/private endpoints; access is Entra RBAC only (roadmap: Premium + private endpoints)
+  #checkov:skip=CKV2_AZURE_1:Microsoft-managed keys meet SC-28 here; CMK needs Key Vault + rotation (roadmap)
+  #checkov:skip=CKV2_AZURE_38:WORM immutability on the reports container is stronger: blobs cannot be deleted during retention
+  #checkov:skip=CKV_AZURE_206:sandbox cost; production would use GRS/RA-GRS (AU-9(2))
+  #checkov:skip=CKV_AZURE_33:no queues on the evidence account (blob only); blob access is logged by evidence_blob_access
+  lifecycle {
+    prevent_destroy = true # evidence must not disappear via terraform destroy (AU-9); remove only by reviewed PR
+  }
   name                     = "stgrcevid${random_string.suffix.result}"
   resource_group_name      = local.evidence_rg
   location                 = var.location
@@ -98,6 +127,10 @@ resource "azurerm_storage_account" "evidence" {
 }
 
 resource "azurerm_storage_container" "reports" {
+  #checkov:skip=CKV2_AZURE_21:rule requires legacy azurerm_log_analytics_storage_insights; access is logged via the current mechanism, diagnostic setting evidence_blob_access on blobServices/default
+  lifecycle {
+    prevent_destroy = true # evidence must not disappear via terraform destroy (AU-9); remove only by reviewed PR
+  }
   name               = "reports"
   storage_account_id = azurerm_storage_account.evidence.id
 }
@@ -135,4 +168,19 @@ resource "azurerm_cosmosdb_sql_role_assignment" "deployer_cosmos_write" {
   role_definition_id  = "${azurerm_cosmosdb_account.evidence.id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002"
   principal_id        = local.deployer_principal_id
   scope               = azurerm_cosmosdb_account.evidence.id
+}
+
+# --- Evidence access log: who reads, writes or deletes evidence (AU-9, AU-12) ---
+# Found 2026-11-04: cge-dine-storage-diagnostics reports Compliant, but it only deploys an
+# ACCOUNT-level setting (metrics: Transaction, Capacity). Storage read/write/delete LOGS exist
+# only on sub-services (blobServices/default), so evidence access was not logged at all.
+# Compliant != control objective met. Roadmap: extend the policy to blob services.
+resource "azurerm_monitor_diagnostic_setting" "evidence_blob_access" {
+  name                       = "ds-evidence-blob-access"
+  target_resource_id         = "${azurerm_storage_account.evidence.id}/blobServices/default"
+  log_analytics_workspace_id = data.terraform_remote_state.foundation.outputs.log_analytics_workspace_id
+
+  enabled_log { category = "StorageRead" }
+  enabled_log { category = "StorageWrite" }
+  enabled_log { category = "StorageDelete" }
 }
