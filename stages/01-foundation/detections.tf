@@ -116,11 +116,11 @@ locals {
     governance_tamper = {
       name        = "cge-governance-tamper"
       display     = "Governance change: policy, RBAC, log routing, or alert rules"
-      description = "Writes/deletes to policy, role assignments/definitions, diagnostic settings, and scheduled query rules. AU-6, CM-3, SI-4."
+      description = "Writes/deletes to policy, RBAC, management locks, diagnostic settings, alert rules, and WORM immutability policies. AU-6, AU-9, CM-3, SI-4."
       frequency   = "PT15M"
       window      = "PT1H"
       severity    = 1
-      controls    = "AU-6 CM-3 SI-4"
+      controls    = "AU-6 AU-9 CM-3 SI-4"
     }
   }
 }

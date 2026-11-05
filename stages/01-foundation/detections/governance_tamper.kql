@@ -1,8 +1,10 @@
 // AU-6, CM-3, SI-4: changes to policy, RBAC, diagnostic settings (the log pipe) and alert rules (the detectors).
 // Policy lives at management-group scope: this only sees it because the MG activity log is exported too.
 // Fires on legitimate Terraform applies as well; each hit should match a merged PR (change evidence).
+// + management locks and WORM immutability policies (write/delete/lock/extend): an unlocked WORM policy can be
+//   shortened or removed via ARM, and that change was invisible (finding 2026-11-04, WORM proof). AU-9.
 AzureActivity
 | where ingestion_time() > ago(20m)  // = frequency PT15M + 5m overlap: select by ARRIVAL so late records are not lost (finding 2026-11-02)
 | where ActivityStatusValue in~ ("Success", "Succeeded")
-| where OperationNameValue matches regex @"(?i)^microsoft\.(authorization/(policyassignments|policydefinitions|policysetdefinitions|policyexemptions|roleassignments|roledefinitions)|insights/(diagnosticsettings|scheduledqueryrules))/(write|delete)$"
+| where OperationNameValue matches regex @"(?i)^microsoft\.(authorization/(policyassignments|policydefinitions|policysetdefinitions|policyexemptions|roleassignments|roledefinitions|locks)/(write|delete)|insights/(diagnosticsettings|scheduledqueryrules)/(write|delete)|storage/storageaccounts/blobservices/containers/immutabilitypolicies/(write|delete|lock/action|extend/action))$"
 | project TimeGenerated, Caller, OperationNameValue, _ResourceId
