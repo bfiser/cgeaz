@@ -27,6 +27,7 @@ from azure.identity import DefaultAzureCredential
 from azure.storage.blob import BlobServiceClient
 from openpyxl import Workbook
 
+import crosswalk  # framework crosswalk, read from the mappings container (unit-tested)
 import poam  # POA&M row logic (unit-tested separately)
 
 app = func.FunctionApp()
@@ -42,10 +43,15 @@ def _clients():
         .get_database_client(os.environ["COSMOS_DATABASE"])
         .get_container_client("assessments")
     )
+    mappings = (
+        CosmosClient(os.environ["COSMOS_ENDPOINT"], credential)
+        .get_database_client(os.environ["COSMOS_DATABASE"])
+        .get_container_client("mappings")
+    )
     blobs = BlobServiceClient(
         account_url=os.environ["REPORTS_ACCOUNT_URL"], credential=credential
     ).get_container_client(os.environ["REPORTS_CONTAINER"])
-    return cosmos, blobs
+    return cosmos, blobs, mappings
 
 
 def _latest_run(cosmos):
@@ -81,6 +87,11 @@ def _closed_since(cosmos, since_iso):
     )
 
 
+def _crosswalk(mappings):
+    """The framework crosswalk as data (collect once): read from the store, never hardcoded."""
+    return crosswalk.index(mappings.query_items(crosswalk.MAPPINGS_QUERY, enable_cross_partition_query=True))
+
+
 def _paths(blobs, prefix, exts, now):
     """One stem for all formats of a report. Daily name, or time-suffixed if today's
     already exists (WORM: never replaced, so a same-day re-run gets its own file)."""
@@ -90,13 +101,13 @@ def _paths(blobs, prefix, exts, now):
 
 
 def generate_poam() -> dict:
-    cosmos, blobs = _clients()
+    cosmos, blobs, mappings = _clients()
     now = datetime.datetime.now(datetime.timezone.utc)
     today = now.date()
     run_id, collected_at = _latest_run(cosmos)
     findings = _unhealthy(cosmos, run_id) if run_id else []
     closed = _closed_since(cosmos, (now - datetime.timedelta(days=CLOSED_LOOKBACK_DAYS)).isoformat())
-    rows, summary = poam.build(findings, closed, today)
+    rows, summary = poam.build(findings, closed, today, _crosswalk(mappings))
 
     wb = Workbook()
     ws = wb.active
@@ -120,10 +131,12 @@ def generate_poam() -> dict:
 
 
 def generate_sar() -> dict:
-    cosmos, blobs = _clients()
+    cosmos, blobs, mappings = _clients()
     run_id, collected_at = _latest_run(cosmos)
     findings = _unhealthy(cosmos, run_id) if run_id else []
     by_severity = Counter(f.get("severity") or "Unknown" for f in findings)
+    xwalk = _crosswalk(mappings)
+    fw = crosswalk.summarize(findings, xwalk)
 
     lines = [
         "# Security Assessment Report (SAR)",
@@ -133,6 +146,15 @@ def generate_sar() -> dict:
         f"- **Open findings:** {len(findings)}",
         f"- **By severity:** " + (", ".join(f"{k}: {v}" for k, v in sorted(by_severity.items())) or "none"),
         "",
+        "## By framework (resolved through the mappings container)",
+        "",
+        f"- **Mapped / unmapped findings:** {fw['mapped']} / {fw['unmapped']}"
+        " (unmapped = Defender built-ins with no crosswalk entry yet)",
+        "- **NIST 800-53 Rev. 5 families:** "
+        + (", ".join(f"{k}: {v}" for k, v in fw["by80053Family"].items()) or "none"),
+        "- **NIST CSF 2.0 functions:** "
+        + (", ".join(f"{k}: {v}" for k, v in fw["byCsfFunction"].items()) or "none"),
+        "",
         "## Findings",
         "",
     ]
@@ -141,6 +163,8 @@ def generate_sar() -> dict:
             f"### {f.get('displayName')}",
             f"- Severity: {f.get('severity')}",
             f"- Resource: `{f.get('resourceId')}`",
+            f"- 800-53: {', '.join(crosswalk.resolve(f, xwalk, crosswalk.NIST_80053)) or 'unmapped'}"
+            f" | CSF 2.0: {', '.join(crosswalk.resolve(f, xwalk, crosswalk.CSF_2)) or 'unmapped'}",
             f"- Assessment ID: `{f.get('assessmentId')}` (trace: query the assessments container)",
             "",
         ]

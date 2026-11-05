@@ -62,7 +62,9 @@ def test_sort_and_summary():
     assert [r["poamId"][5:] for r in rows][0] == "HI_OLD"      # overdue first
     assert rows[-1]["status"] == "Closed"                       # closed last
     assert summary == {"open": 3, "overdue": 1, "unassigned": 1, "closedRecently": 1, "oldestOpenDays": 59,
-                       "openBySource": {"defender": 3}}
+                       "openBySource": {"defender": 3},
+                       # no crosswalk passed: every open finding is counted as unmapped, never dropped
+                       "byFramework": {"mapped": 0, "unmapped": 3, "by80053Family": {}, "byCsfFunction": {}}}
 
 
 def test_report_path_daily_then_suffixed():
@@ -85,3 +87,23 @@ def test_defender_finding_defaults_source_and_empty_controls():
 def test_summary_counts_open_by_source():
     _, summary = poam.build([doc("a"), dict(doc("b"), source="azurePolicy")], [], TODAY)
     assert summary["openBySource"] == {"azurePolicy": 1, "defender": 1}
+
+
+def test_controls_and_csf_resolved_through_crosswalk():
+    import crosswalk as cw
+    idx = cw.index([
+        {"frameworkId": cw.NIST_80053, "sourceKey": "cge-x", "controls": ["AU-2", "AU-12"]},
+        {"frameworkId": cw.CSF_2, "sourceKey": "cge-x", "controls": ["PR.PS-04"]},
+    ])
+    d = dict(doc("p"), source="azurePolicy", assessmentId="cge-x", controls=["STALE-1"])
+    r = poam.to_row(d, TODAY, idx)
+    assert r["controls"] == "AU-2, AU-12"   # the store wins over the copy on the document
+    assert r["csf"] == "PR.PS-04"
+
+
+def test_summary_includes_framework_breakdown():
+    import crosswalk as cw
+    idx = cw.index([{"frameworkId": cw.NIST_80053, "sourceKey": "cge-x", "controls": ["AU-2"]}])
+    _, s = poam.build([dict(doc("p"), assessmentId="cge-x"), doc("q")], [], TODAY, idx)
+    assert s["byFramework"]["by80053Family"] == {"AU": 1}
+    assert s["byFramework"]["unmapped"] == 1
