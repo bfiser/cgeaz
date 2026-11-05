@@ -1,0 +1,34 @@
+FINAL CHECKS - 2026-11-05T16:58:13Z - main @ 4577a66
+== self-check
+self-check: 18 passed, 0 failed
+Mechanical checks green. Now verify the two things this script can't:
+== gitleaks
+[90m11:58AM[0m [32mINF[0m no leaks found
+== unit tests
+collector: 25 passed in 0.11s
+reporter:  20 passed in 0.01s
+scripts:   15 passed in 0.02s
+== conftest
+[32m43 tests, 43 passed, 0 warnings, 0 failures, 0 exceptions, 0 skipped[0m
+== tflint
+clean
+== checkov
+Passed checks: 55, Failed checks: 0, Skipped checks: 31
+== drift: plan -detailed-exitcode per stage (0 = code matches Azure)
+01-foundation exit=0
+02-activation exit=0
+03-evidence-store exit=0
+04-reporting exit=0
+06-enforcement exit=0
+== required checks on main
+gate (01-foundation)
+gate (03-evidence-store)
+gate (04-reporting)
+gate (06-enforcement)
+gate (02-activation)
+== repo
+visibility: PUBLIC
+size: 226 KB (limit 50 MB); files: 121 (limit 10000)
+== PII
+no personal email in tracked files
+== found during final checks: stage 02 KeyVaults pricing missing from state (exit=2) -> imported (PR #40), stage 02 added to drift + gate matrix and required checks
