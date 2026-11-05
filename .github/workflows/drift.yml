@@ -6,7 +6,7 @@ name: drift-detection
 
 on:
   schedule:
-    - cron: "0 8 * * *"   # nightly, after the 05:00 UTC collection sweep
+    - cron: "37 8 * * *"   # nightly after the 05:00 UTC sweep; off the hour: GitHub drops/delays top-of-hour schedules under load (no scheduled run 11-01..11-05)
   workflow_dispatch: {}
 
 permissions:
