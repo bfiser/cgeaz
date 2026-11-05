@@ -1,0 +1,14 @@
+Report:  reports/poam/2026/11/poam-2026-11-05-154041.json
+runId:   8513404f-2e41-4272-be49-b8ede0f70272   generatedAt: 2026-11-05T15:40:41.613105+00:00
+Cross-check: COUNT query = 76, rows returned = 76 -> OK
+
+metric           match  reported -> recomputed from the store
+open             PASS   76 -> 76
+overdue          PASS   0 -> 0
+unassigned       PASS   27 -> 27
+closedRecently   PASS   0 -> 0
+oldestOpenDays   PASS   15 -> 15
+openBySource     PASS   {"azurePolicy": 11, "defender": 65} -> {"azurePolicy": 11, "defender": 65}
+byFramework      PASS   {"mapped": 11, "unmapped": 65, "by80053Family": {"AC": 4, "AU": 1, "CM": 2, "IA": 1, "SC": 6}, "byCsfFunction": {"ID": 2, "PR": 9}} -> {"mapped": 11, "unmapped": 65, "by80053Family": {"AC": 4, "AU": 1, "CM": 2, "IA": 1, "SC": 6}, "byCsfFunction": {"ID": 2, "PR": 9}}
+
+ALL NUMBERS REPRODUCED
