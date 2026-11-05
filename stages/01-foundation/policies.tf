@@ -4,6 +4,12 @@
 
 # --- 1. Require the `env` tag on resource groups (inventory hygiene; POA&M owner resolution) ---
 
+# BLAST RADIUS
+#   Audit (default, onboarding): changes nothing; untagged resource groups are reported
+#     (and their findings show as UNASSIGNED owners in the POA&M).
+#   Deny: blocks creating any resource group without `env`, including platform-created ones
+#     (NetworkWatcherRG is auto-created by Azure and untagged) and seed-estate re-runs.
+#   Rollback: set tag_policy_effect back to "Audit" (one-line PR).
 resource "azurerm_policy_definition" "require_env_tag" {
   name                = "cge-require-env-tag-rg"
   display_name        = "Resource groups must carry an env tag"
@@ -39,6 +45,12 @@ resource "azurerm_policy_definition" "require_env_tag" {
 
 # --- 2. Deny public blob access on storage accounts (clear-cut, framework-mandated: earned Deny) ---
 
+# BLAST RADIUS
+#   Deny (current, earned): blocks creating or updating any storage account under mg-grc-sandbox
+#     that allows public blob access. An existing non-compliant account cannot be updated at all
+#     until fixed. Could break: anything that legitimately serves anonymous blobs (none here;
+#     the public seed account is the deliberate finding). Proven: RequestDisallowedByPolicy.
+#   Rollback: set public_blob_policy_effect to "Audit" (one-line PR; Lab 6 did Deny -> Audit -> Deny).
 resource "azurerm_policy_definition" "deny_public_blob" {
   name                = "cge-deny-public-blob"
   display_name        = "Storage accounts must not allow public blob access"
@@ -74,6 +86,14 @@ resource "azurerm_policy_definition" "deny_public_blob" {
 # --- 3. deployIfNotExists: storage accounts missing diagnostic settings get them, routed to the GRC workspace ---
 # Logging that enforces its own coverage. Remediation runs AS the identity in identity.tf.
 
+# BLAST RADIUS
+#   DeployIfNotExists: creates a diagnostic setting (account-level metrics) on storage accounts that
+#     lack one, as the remediation identity (Monitoring Contributor). Never deletes or reads data.
+#     Existing accounts change only through a remediation task a human starts.
+#   Could break: an account at its limit of 5 diagnostic settings; adds small ingestion cost.
+#   Known limit (2026-11-04): Compliant does not mean read/write/delete LOGS are collected (those live
+#     on blobServices); the evidence account has its own blob-service setting in stage 03.
+#   Rollback: set the initiative parameter to Disabled or remove the reference (PR).
 resource "azurerm_policy_definition" "storage_diagnostics" {
   name                = "cge-dine-storage-diagnostics"
   display_name        = "Storage accounts must route diagnostics to the GRC workspace"

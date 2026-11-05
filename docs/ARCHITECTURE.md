@@ -1,10 +1,9 @@
 # CGE-AZ Pipeline Architecture
 
-How the starter pipeline is put together: the stage flow, the contracts between
-stages, where data goes, and which identity is allowed to touch what. The capstone
-rubric asks for an architecture doc "showing stage flow and identity boundaries" —
-this is the starter's. Yours should describe *your* pipeline, including every place
-you departed from this one and why.
+How this pipeline is put together: the stage flow, the contracts between stages, where
+data goes, and which identity is allowed to touch what. It started as the course starter's
+architecture and is extended for this capstone; every departure is described in place and
+summarized in [section 5](#5-capstone-departures-what-i-changed-and-why).
 
 ## 1. Stage flow
 
@@ -42,7 +41,7 @@ are the interface; everything else is private implementation.
 
 | Stage | Reads from | Publishes |
 |---|---|---|
-| 01 foundation | nothing | `subscription_id`, `management_group_id`, `log_analytics_workspace_id`, `evidence_resource_group_name`, `remediation_identity_id`, `remediation_identity_principal_id` |
+| 01 foundation | nothing | `subscription_id`, `management_group_id`, `root_management_group_id` / `_name` (added for the collector's hierarchy-wide reads), `log_analytics_workspace_id`, `evidence_resource_group_name`, `remediation_identity_id`, `remediation_identity_principal_id` |
 | 02 activation | nothing (discovers live state with `azapi` data sources) | Defender plan tiers, the NIST CSF 2.0 assignment |
 | 03 evidence store | 01 | `cosmos_endpoint`, `cosmos_account_id/name`, `evidence_storage_account`, `reports_container`, `collector_function_app`, `collector_principal_id` |
 | 04 reporting | 01, 03 | `reporting_function_app`, `reporter_principal_id` |
@@ -57,13 +56,18 @@ untouched and becomes change-managed.
 ## 2. Data flow
 
 ```
- Defender for Cloud ──(assessments API)──▶ collector Function ──▶ Cosmos: assessments
-       │                                   nightly 05:00 UTC          /subscriptionId
-       │                                   runId + collectedAt
-  Azure Policy ──────────────────────────▶ compliance states (portal / KQL)
+ Defender for Cloud ──(assessments API)────┐
+ Azure Policy (cge-grc-baseline states, ───┤ collector Function ──▶ Cosmos: assessments  /subscriptionId
+   one query at mg-grc)                    │ nightly 05:00 UTC       (source = defender | azurePolicy,
+                                           │ runId + collectedAt      lifecycle: firstUnhealthyAt,
+ Role assignments (hierarchy, 05:15 UTC) ──┘                          resolvedAt, owner)
+                                                                  ▶ Cosmos: roleAssignments /scopeRoot
+                 frameworks ◀── seed_frameworks.py (CSF 2.0) + seed_crosswalk.py (800-53 families)
+                 mappings   ◀── seed_crosswalk.py: policy definition metadata → one doc per framework × policy
                                                                     │
-                 frameworks ◀── seed_frameworks.py (CSF 2.0 catalog) │
-                 mappings   ◀── the crosswalk, as data               │
+ Activity log (subscription: Security, Alert; MG export at mg-grc: Administrative, Policy)
+   ──▶ Log Analytics ──▶ 3 scheduled query rules (tamper, off-hours, external) ──▶ Azure Monitor alerts
+ Evidence blob service ──(StorageRead/Write/Delete)──▶ Log Analytics (who touched the evidence)
                                                                     ▼
                                            reporting Function ◀── reads Cosmos ONLY
                                            POA&M daily (xlsx+json), SAR weekly (md)
@@ -91,7 +95,8 @@ Three rules make this defensible:
 |---|---|---|
 | `assessments` | `/subscriptionId` | Every query the reports run is "this subscription, this run". A second and third subscription land as new partitions with no reshaping — the scale-by-scope requirement in the capstone brief. |
 | `frameworks` | `/frameworkId` | A catalog is read whole, one framework at a time. |
-| `mappings` | `/frameworkId` | The crosswalk is queried per target framework when a report resolves which controls an assessment satisfies. |
+| `mappings` | `/frameworkId` | The crosswalk is queried per target framework when a report resolves which controls an assessment satisfies. Document IDs `<framework>\|<policy>` make the seed idempotent. |
+| `roleAssignments` | `/scopeRoot` | Snapshots are read per root of the hierarchy; a second tenant root or hierarchy becomes a new partition. One document per assignment per day keeps access history. |
 
 Document IDs in `assessments` are a hash of `assessmentId|resourceId`, so a re-run
 upserts rather than duplicates; lineage comes from `runId` and `collectedAt` on every
@@ -105,10 +110,10 @@ an OIDC federation, and every identity's roles are a whitelist of its job.
 
 | Identity | Kind | Roles (scope) | Can | Cannot |
 |---|---|---|---|---|
-| **Deployer** (you) | `az login` user | Owner on the subscription; Storage Blob Data Contributor on the evidence account; Cosmos Data Contributor | Apply stages, seed frameworks, prove WORM | Nothing is automated through this identity |
-| **Remediation** `id-grc-remediation-<env>` | User-assigned MI | Monitoring Contributor (sandbox MG); Storage Account Contributor (sandbox MG) *only* when `remediation_mode != audit` | Create diagnostic settings; flip `allowBlobPublicAccess` | Create, delete, or read data from anything |
-| **Collector** `func-grc-collectors-*` | System-assigned MI | Security Reader (subscription); **GRC Role Assignment Reader** (custom, `mg-grc`: 4 read actions); Cosmos Built-in Data Contributor (evidence account) | Read Defender assessments; read role assignments + definitions across the hierarchy; write evidence (`assessments`, `roleAssignments`) | Change posture; grant or revoke access; read resource contents or secrets; write reports |
-| **Reporter** `func-grc-reporting-*` | System-assigned MI | Cosmos Built-in Data Reader; Storage Blob Data Contributor (`reports`) | Read evidence; write immutable reports | Read live platform data; write evidence |
+| **Deployer** (you) | `az login` user | Owner on the subscription; Storage Blob Data Contributor on the evidence account; Cosmos Data Contributor (both pinned to `deployer_principal_id`, so CI can never move them to itself) | Apply stages, seed frameworks and crosswalk, prove WORM | Nothing is automated through this identity |
+| **Remediation** `id-grc-remediation-<env>` | User-assigned MI | Monitoring Contributor (sandbox MG); Storage Account Contributor (sandbox MG) *only* when `remediation_mode != audit` | Create diagnostic settings; flip `allowBlobPublicAccess` | Create or delete resources. **Known gap:** Storage Account Contributor includes `listKeys`, i.e. data access on shared-key accounts; fix on the roadmap (custom role: `storageAccounts/read` + `write`) |
+| **Collector** `func-grc-collectors-*` | System-assigned MI | Security Reader (subscription); **GRC Role Assignment Reader** (custom, `mg-grc`: 4 read actions); **GRC Policy State Reader** (custom, `mg-grc`: `policyStates/queryResults/read` + `/action`, `policyDefinitions/read`); Cosmos Built-in Data Contributor (evidence account) | Read Defender assessments and policy states; read role assignments + definitions across the hierarchy; write evidence (`assessments`, `roleAssignments`) | Change posture; grant or revoke access; read resource contents or secrets; write reports |
+| **Reporter** `func-grc-reporting-*` | System-assigned MI | Cosmos Built-in Data Reader (account: `assessments`, `mappings`, `frameworks`); Storage Blob Data Contributor (`reports`) | Read evidence and the crosswalk; write immutable reports (never overwrite: same-day re-runs get a time-suffixed file) | Read live platform data; write evidence |
 | **CI** (your fork's gate + drift) | GitHub OIDC federation, fork-scoped | Contributor at `mg-grc`; Storage Blob Data Contributor on the state resource group (hardening to a plan-only custom role is a documented exercise) | `terraform plan`, conftest | Write RBAC; hold a secret — there is none |
 
 The boundaries that matter:
@@ -152,15 +157,34 @@ remediation-task approval.
 `terraform plan` per stage on every PR and refuses plans that break the repo's own
 standard (`policy/*.rego`: no public blob, no shared keys, no broad roles). Drift
 detection (`drift.yml`) plans nightly with `-detailed-exitcode` and opens an issue
-when reality has moved away from code; the KQL tripwire in Log Analytics answers the
-other direction — who has been touching reality.
+when reality has moved away from code; three scheduled KQL rules in Log Analytics answer
+the other direction: who has been touching reality (stage 01 `detections.tf`).
 
-## 5. Where this starter stops and yours begins
+## 5. Capstone departures: what I changed and why
 
-The rubric grades the pipeline, not the estate (`seed-estate.sh` gives you material
-to find). At minimum your fork must add one policy or control of your own, correctly
-effected and mapped in `CONTROLS.md`, and this document should gain a section for it:
-what it checks, which identity acts, what its blast radius is, and why you chose its
-effect. Good candidates the seeded estate leaves lying around: management ports open
-to the internet, Key Vaults without purge protection, workload identities holding
-Contributor, resources missing an owner tag.
+Each custom control: what it checks, who acts, its effect and blast radius (the full blast-radius
+note sits above each definition in `stages/01-foundation/policies*.tf`).
+
+| Control | Checks | Who acts | Effect (why) | Blast radius if escalated to Deny |
+|---|---|---|---|---|
+| `cge-storage-min-tls12` | Declared minimum TLS ≥ 1.2 | Azure Policy (no identity) | Audit: Azure enforces 1.2 at the service; the declared config must still be truthful | Updates to a non-compliant account blocked until fixed |
+| `cge-appservice-secure-transport` | `httpsOnly` | Azure Policy | Audit, Deny-capable | Blocks non-HTTPS apps incl. this pipeline's Functions (already fixed in code) |
+| `cge-appservice-tls-ftps` | TLS 1.2+ app + SCM, FTPS/FTP off (`sites/config/web`) | Azure Policy | AuditIfNotExists (cannot Deny; the PR gate is the preventive layer) | None (cannot block) |
+| `cge-audit-privileged-roles` | Owner/Contributor/UAA/RBAC Admin grants (mode All) | Azure Policy | Audit: Deny would block break-glass grants; JIT/PIM is the right control | Blocks new privileged grants, incl. emergency ones |
+| `cge-nsg-no-internet-mgmt-ports` | 22/3389 from internet, inline + child rules, single + list values (mode All) | Azure Policy | Audit now; strongest Deny candidate once the seed NSG is fixed | Any update to an open NSG blocked; seed re-runs fail |
+| Policy-state + role-assignment collection | Evidence beyond Defender | Collector MI (custom read-only roles) | n/a | Read-only; cannot change posture or grant access |
+| KQL detections | Governance tamper, off-hours, external identities | Azure Monitor (scheduled query rules) | Alert only | None (alerts, no action group yet) |
+
+Design decisions worth defending:
+
+- **Lifecycle lives in the collector, not the reporter.** The collector is the only identity that may write
+  evidence; the reporter stays read-only (SoD), so "first detected" is a recorded fact, not a computed guess.
+- **Policy findings use the Defender document shape** (`source` field), so lifecycle, owners, stable IDs and
+  deadlines apply unchanged.
+- **The collector's hierarchy-wide read is deliberate** (section 3): Azure Policy cannot see MG-scope grants.
+- **One export per activity-log category.** The MG export at `mg-grc` carries child MGs *and* every subscription;
+  exporting the same categories from the subscription stored every event twice (measured: dup ratio 1.0 → 2.0).
+- **Detections select by `ingestion_time()`** with a 5-minute overlap: with window = frequency, 2 of 3 events
+  were never evaluated in a live test because ingestion lags 5–10 minutes.
+- **Scale by scope, not size:** assignments and queries at management-group scope, partition keys that include
+  the subscription or hierarchy root, no hardcoded subscription IDs in code (tests use a fake ID).
