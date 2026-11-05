@@ -8,6 +8,8 @@ lifecycle facts (firstUnhealthyAt, resolvedAt, owner) and turns them into a plan
 import datetime
 from collections import Counter
 
+import crosswalk as cw
+
 # Severity-based SLAs: a POA&M is a plan, not a list.
 SLA_DAYS = {"High": 30, "Medium": 90, "Low": 180}
 SEVERITY_RANK = {"High": 0, "Medium": 1, "Low": 2}
@@ -18,6 +20,7 @@ COLUMNS = [
     ("source", "Source"),
     ("weakness", "Weakness"),
     ("controls", "800-53 Controls"),
+    ("csf", "CSF 2.0"),
     ("resourceId", "Affected Resource"),
     ("severity", "Severity"),
     ("owner", "Owner"),
@@ -42,7 +45,7 @@ def _date(iso):
     return datetime.date.fromisoformat(iso[:10]) if iso else None
 
 
-def to_row(doc, today):
+def to_row(doc, today, xwalk=None):
     """One POA&M row. Deadlines run from FIRST detection, so they stop sliding and can pass."""
     severity = doc.get("severity") or "Medium"
     first = _date(doc.get("firstUnhealthyAt")) or _date(doc.get("collectedAt")) or today
@@ -54,8 +57,10 @@ def to_row(doc, today):
         # Which assessment produced the finding: Microsoft's scanner or our own policy (CA-7).
         "source": doc.get("source") or "defender",
         "weakness": doc.get("displayName"),
-        # From the policy definition's own metadata, so the mapping lives in one place (code).
-        "controls": ", ".join(doc.get("controls") or []),
+        # Resolved through the crosswalk in the store (mappings container); falls back to the
+        # controls the collector copied from the policy metadata if the crosswalk has no entry.
+        "controls": ", ".join(cw.resolve(doc, xwalk or {}, cw.NIST_80053) or doc.get("controls") or []),
+        "csf": ", ".join(cw.resolve(doc, xwalk or {}, cw.CSF_2)),
         "resourceId": doc.get("resourceId"),
         "severity": severity,
         "owner": doc.get("owner") or UNASSIGNED,
@@ -70,10 +75,10 @@ def to_row(doc, today):
     }
 
 
-def build(open_docs, closed_docs, today):
+def build(open_docs, closed_docs, today, xwalk=None):
     """Rows for open findings plus recently closed ones, sorted so the riskiest come first:
     open before closed, overdue first, then severity, then longest open."""
-    rows = [to_row(d, today) for d in open_docs] + [to_row(d, today) for d in closed_docs]
+    rows = [to_row(d, today, xwalk) for d in open_docs] + [to_row(d, today, xwalk) for d in closed_docs]
     rows.sort(key=lambda r: (r["status"] == "Closed", not r["overdue"],
                              SEVERITY_RANK.get(r["severity"], 9), -r["daysOpen"]))
     open_rows = [r for r in rows if r["status"] == "Open"]
@@ -84,6 +89,8 @@ def build(open_docs, closed_docs, today):
         "closedRecently": len(rows) - len(open_rows),
         "oldestOpenDays": max((r["daysOpen"] for r in open_rows), default=0),
         "openBySource": dict(sorted(Counter(r["source"] for r in open_rows).items())),
+        # Open findings per 800-53 family / CSF 2.0 function, via the crosswalk; unmapped counted.
+        "byFramework": cw.summarize(open_docs, xwalk or {}),
     }
     return rows, summary
 
